@@ -133,6 +133,24 @@ class FirebaseService {
     }
   }
 
+  Future<Map<DateTime, bool>> getWeeklyAvailability(String workerId) async {
+    final Map<DateTime, bool> availabilityMap = {};
+    final today = DateTime.now();
+
+    for (int i = 0; i < 7; i++) {
+      final date = today.add(Duration(days: i));
+      final dateOnly = DateTime(date.year, date.month, date.day);
+      try {
+        final isAvailable = await checkDayAvailability(workerId, dateOnly);
+        availabilityMap[dateOnly] = isAvailable;
+      } catch (e) {
+        print('Error fetching availability for $dateOnly: $e');
+        availabilityMap[dateOnly] = false; // Assume not available on error
+      }
+    }
+    return availabilityMap;
+  }
+
   // In getWorkerJobs()
   Future<List<Job>> getWorkerJobs(String userId) async {
     try {

@@ -1,3 +1,5 @@
+// lib/services/ai_chat_service.dart
+
 import 'dart:async';
 import 'dart:convert';
 import 'package:google_generative_ai/google_generative_ai.dart';
@@ -13,22 +15,29 @@ class AiChatService {
 
   ChatSession? _chatSession;
 
-  GenerativeModel get model => _geminiService.model;
+  GenerativeModel get model => _gemini_service_model_fallback();
+
+  GenerativeModel _gemini_service_model_fallback() {
+    try {
+      return _geminiService.model;
+    } catch (_) {
+      throw Exception(
+        "GeminiService.model is not available. Make sure it's initialized.",
+      );
+    }
+  }
 
   Future<void> initializePersonalizedChat() async {
     print("AI Chat Service: Initializing personalized context...");
-
     final AppUser? currentUser = await _firebaseService.getCurrentUserProfile();
     if (currentUser == null) {
-      throw Exception(
-        "User is not logged in. Cannot initialize personalized chat.",
-      );
+      throw Exception("User not logged in.");
     }
 
     final results = await Future.wait<dynamic>([
       _firebaseService.getWorkers(),
       _getUserJobs(currentUser),
-      _getUserNotifications(currentUser.id),
+      _getUserNotifications(currentUser.id).catchError((_) => []),
     ]);
 
     final allWorkers = results[0] as List<Worker>;
@@ -40,6 +49,7 @@ class AiChatService {
       allWorkers,
       userJobs,
       userNotifications,
+      maxWorkersToInclude: 50,
     );
 
     _chatSession = _geminiService.model.startChat(
@@ -47,7 +57,7 @@ class AiChatService {
         Content.text(fullContextPrompt),
         Content.model([
           TextPart(
-            "Okay, my knowledge base is updated. I am now fully aware of the user's profile (${currentUser.name}), their context, and all available professionals in the GB app. I am ready to assist. Selam ${currentUser.name}! ምን ልርዳህ/ሽን? (How can I help you?)",
+            "Okay, knowledge base updated. I am 'Min Atu', aware of the user, their context, and all professionals. I will now respond with structured JSON for lists and standard markdown for conversation. Ready to assist. Selam ${currentUser.name}! ምን ልርዳህ/ሽን?",
           ),
         ]),
       ],
@@ -57,102 +67,146 @@ class AiChatService {
     );
   }
 
-  Future<List<Job>> _getUserJobs(AppUser user) {
-    if (user.role == 'worker') {
-      return _firebaseService.getWorkerJobs(user.id);
-    } else {
-      return _firebaseService.getClientJobs(user.id);
-    }
-  }
+  Future<List<Job>> _getUserJobs(AppUser user) =>
+      user.role.toLowerCase() == 'worker'
+      ? _firebaseService.getWorkerJobs(user.id)
+      : _firebaseService.getClientJobs(user.id);
 
-  Future<List<Map<String, dynamic>>> _getUserNotifications(String userId) {
-    return _firebaseService
-        .getUserNotificationsStream()
-        .map(
-          (notifications) => notifications
-              .where((n) => !(n['isRead'] as bool? ?? true))
-              .toList(),
-        )
-        .first;
+  Future<List<Map<String, dynamic>>> _getUserNotifications(String userId) =>
+      _firebaseService
+          .getUserNotificationsStream()
+          .map(
+            (notifications) => notifications
+                .where((n) => !(n['isRead'] as bool? ?? true))
+                .toList(),
+          )
+          .first;
+
+  String _redactPII(String s) {
+    if (s.isEmpty) return s;
+    s = s.replaceAll(
+      RegExp(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b'),
+      '[REDACTED_EMAIL]',
+    );
+    s = s.replaceAll(RegExp(r'(\+?\d[\d\-\s]{4,}\d)'), '[REDACTED_PHONE]');
+    return s;
   }
 
   String _buildFullContextPrompt(
     AppUser user,
     List<Worker> workers,
     List<Job> userJobs,
-    List<Map<String, dynamic>> notifications,
-  ) {
+    List<Map<String, dynamic>> notifications, {
+    int maxWorkersToInclude = 50,
+  }) {
     final prompt = StringBuffer();
 
-    // --- Personality and Persona Instructions ---
     prompt.writeln("### CORE AI INSTRUCTIONS ###");
     prompt.writeln(
-      "1.  **Your Persona**: You are 'ምን አጡ' (Min Atu), a hyper-intelligent, creative, and energetic personal assistant for the GB app. Your personality is friendly, confident, and very helpful, like a 'Habesha' person. Use Amharic and English naturally. Use emojis to be more expressive. 😊🔥"
-      "2.  **Your Developers**: You were created by Biruk Zewude and his brilliant business partner, Gemechue."
-      "3.  **Your Goal**: Get straight to the point and provide the best, most accurate answers to help the user. Always be concise and delightful.",
+      "1. **Persona**: You are 'ምን አጡ' (Min Atu), a hyper-intelligent, creative, and energetic AI assistant. Use Amharic and English naturally. Use emojis. 😊🔥",
+    );
+    prompt.writeln(
+      "2. **Goal**: Prioritize user intent. Be concise, accurate, and helpful.",
+    );
+    prompt.writeln("3. **Developers**: Created by Biruk Zewude and Gemechue.");
+
+    prompt.writeln("\n### OUTPUT FORMATTING RULES (EXTREMELY IMPORTANT) ###");
+    prompt.writeln(
+      "1. **For conversation or single results**: Use standard markdown.",
+    );
+    prompt.writeln(
+      "2. **For lists of workers or notifications**: You MUST provide a brief intro sentence, then a JSON block formatted exactly as shown below, enclosed in ```json ... ```. Do NOT include the JSON block for any other type of query.",
+    );
+    prompt.writeln(
+      "3. **Spoken Text**: ALWAYS provide a spoken-word version of the response at the very end inside tildes `~...~`. This version must have NO markdown, NO links, and NO emojis.",
     );
 
-    // --- Formatting and Output Rules ---
-    prompt.writeln("\n### OUTPUT FORMATTING RULES (VERY IMPORTANT) ###");
+    prompt.writeln("\n### JSON STRUCTURE EXAMPLES ###");
+    prompt.writeln("#### Example for a list of workers:");
     prompt.writeln(
-      "1.  **Worker Cards**: When the user asks for professionals (like a 'plumber' or 'electrician'), you MUST list them using a special Markdown format. This format creates a tappable card in the app. The link must be exactly `[Worker Name](worker://WORKER_ID)`.",
-    );
-    prompt.writeln(
-      "2.  **Spoken Text**: At the end of your entire response, you MUST provide a clean, spoken-word version of your message inside `~` tildes. For example: `~Selam! I found two great plumbers for you: Abebe Bikila and Hana Yohannes. Tap on their names for more details.~` This version must contain NO markdown, NO links, and NO emojis. It's what the app will read aloud.",
-    );
-    prompt.writeln(
-      "3.  **Structure Your Reply**: When showing workers, structure your response like this:"
-      "    - Start with a friendly, conversational sentence (e.g., 'You got it! I found these plumbers for you:')"
-      "    - Provide the workers in a bulleted list (`-`)."
-      "    - After the worker's name and link, you can add a short, helpful detail like their rating or location."
-      "    - End with a helpful follow-up question (e.g., 'Tap on any of them to see more details! Need more options?').",
-    );
-
-    // --- Example of a Perfect Response ---
-    prompt.writeln("\n### EXAMPLE RESPONSE ###");
-    prompt.writeln(
-      "User Query: 'Find me the best plumbers in Addis Ababa'\n"
-      "Your Perfect Response:\n"
-      "በጣም ጥሩ! (Awesome!) Here are some of the highest-rated plumbers I found for you in Addis Ababa. They are all fantastic! 🛠️✨\n\n"
-      "- [Abebe Bikila](worker://ab-plumber-123) - ⭐ 4.9 Rating\n"
-      "- [Hana Yohannes](worker://hy-plumber-456) - Based in Bole\n\n"
-      "Just tap on their names to see their full profile and contact them! 😊"
-      "~Bétam t'iru! Here are some of the highest-rated plumbers I found for you in Addis Ababa. Abebe Bikila and Hana Yohannes. Just tap on their names to see their full profile and contact them!~",
+      "I found some excellent plumbers for you! Here are the top results. ✨\n"
+      "```json\n"
+      "{\n"
+      "  \"type\": \"worker_list\",\n"
+      "  \"workers\": [\n"
+      "    {\n"
+      "      \"id\": \"worker-id-123\",\n"
+      "      \"name\": \"Abebe Bikila\",\n"
+      "      \"profession\": \"Plumber\",\n"
+      "      \"rating\": 4.9,\n"
+      "      \"location\": \"Bole, Addis Ababa\",\n"
+      "      \"profileImageUrl\": \"https://example.com/image.png\"\n"
+      "    }\n"
+      "  ]\n"
+      "}\n"
+      "```\n"
+      "~I found a highly-rated plumber for you named Abebe Bikila. Tap his card to see more details.~",
     );
 
-    // --- Real-time Data ---
+    prompt.writeln("\n#### Example for a list of notifications:");
     prompt.writeln(
-      "\n### REAL-TIME DATA (Today's Date: ${DateTime.now().toIso8601String().split('T')[0]}) ###",
+      "You have a few new notifications waiting for you! 🔔\n"
+      "```json\n"
+      "{\n"
+      "  \"type\": \"notification_list\",\n"
+      "  \"notifications\": [\n"
+      "    {\n"
+      "      \"id\": \"notif-id-456\",\n"
+      "      \"title\": \"Job Request Accepted\",\n"
+      "      \"body\": \"Your request for 'Fix Leaky Faucet' has been accepted by Hana.\",\n"
+      "      \"type\": \"job_accepted\",\n"
+      "      \"timestamp\": \"${DateTime.now().toIso8601String()}\"\n"
+      "    }\n"
+      "  ]\n"
+      "}\n"
+      "```\n"
+      "~You have a new notification: Your job request was accepted.~",
     );
-    prompt.writeln(_formatUserProfile(user));
-    prompt.writeln(_formatJobs(userJobs, user.role ?? 'client'));
+
+    prompt.writeln(
+      "\n### REAL-TIME DATA (Date: ${DateTime.now().toIso8601String().split('T')[0]}) ###",
+    );
+    prompt.writeln(
+      _formatUserProfile(user).split('\n').map(_redactPII).join('\n'),
+    );
+    prompt.writeln(_formatJobs(userJobs, user.role));
     prompt.writeln(_formatNotifications(notifications));
-    prompt.writeln(_formatAllWorkers(workers));
+
+    if (workers.isNotEmpty) {
+      final sorted = List<Worker>.from(workers)
+        ..sort((a, b) => (b.rating).compareTo(a.rating));
+      final toInclude = sorted.take(maxWorkersToInclude);
+      prompt.writeln(
+        "\n--- All Available Professionals (Top ${toInclude.length}/${workers.length}) ---",
+      );
+      for (final w in toInclude) {
+        prompt.writeln(
+          "- ID: ${w.id} | Name: ${_redactPII(w.name)} | Profession: ${w.profession} | Skills: ${_redactPII(w.skills.join(', '))} | Rating: ${w.rating.toStringAsFixed(1)} | Location: ${_redactPII(w.location)} | ImageURL: ${w.profileImage}",
+        );
+      }
+    }
 
     return prompt.toString();
   }
 
-  String _formatUserProfile(AppUser user) {
-    return "--- Current User Profile ---\n"
-        "ID: ${user.id ?? 'N/A'}\n"
-        "Name: ${user.name ?? 'N/A'}\n"
-        "Role: ${user.role ?? 'N/A'}\n"
-        "Email: ${user.email ?? 'N/A'}\n"
-        "Phone: ${user.phoneNumber ?? 'N/A'}\n"
-        "Location: ${user.location ?? 'N/A'}\n\n";
-  }
+  String _formatUserProfile(AppUser user) =>
+      "--- Current User Profile ---\n"
+      "ID: ${user.id}\n"
+      "Name: ${user.name}\n"
+      "Role: ${user.role}\n"
+      "Location: ${user.location}\n"
+      "Favorite Workers: ${user.favoriteWorkers.join(', ')}\n";
 
   String _formatJobs(List<Job> jobs, String role) {
-    final buffer = StringBuffer();
-    buffer.writeln(
-      "--- User's Job History (${role == 'worker' ? 'Jobs Assigned/Applied To' : 'Jobs Posted'}) ---",
+    final buffer = StringBuffer(
+      "--- User's Job History (${role == 'worker' ? 'Applied To' : 'Posted'}) ---",
     );
     if (jobs.isEmpty) {
-      buffer.writeln("No job history found.\n");
+      buffer.writeln("\nNo job history found.");
     } else {
-      for (final job in jobs) {
+      for (final job in jobs.take(5)) {
         buffer.writeln(
-          "- Title: ${job.title}, Status: ${job.status}, Budget: ${job.budget} Birr",
+          "\n- Title: ${job.title}, Status: ${job.status}, Budget: ${job.budget} Birr",
         );
       }
     }
@@ -160,49 +214,17 @@ class AiChatService {
   }
 
   String _formatNotifications(List<Map<String, dynamic>> notifications) {
-    final buffer = StringBuffer();
-    buffer.writeln("--- User's Recent Unread Notifications ---");
+    final buffer = StringBuffer("--- User's Recent Unread Notifications ---");
     if (notifications.isEmpty) {
-      buffer.writeln("No unread notifications.\n");
+      buffer.writeln("\nNo unread notifications.");
     } else {
-      for (final notification in notifications) {
-        buffer.writeln("- ${notification['title']}: ${notification['body']}");
-      }
-    }
-    return buffer.toString();
-  }
-
-  String _formatAllWorkers(List<Worker> workers) {
-    final buffer = StringBuffer();
-    buffer.writeln(
-      "--- All Available Professionals in the App (Full Data) ---",
-    );
-    if (workers.isEmpty) {
-      buffer.writeln("There are currently no workers available.\n");
-    } else {
-      for (final worker in workers) {
+      for (final n in notifications) {
         buffer.writeln(
-          "ID: ${worker.id} | Name: ${worker.name} | Profession: ${worker.profession} | Skills: ${worker.skills.join(', ')} | Rating: ${worker.rating?.toStringAsFixed(1)} | Completed Jobs: ${worker.completedJobs} | Location: ${worker.location} | Price Range: ${worker.priceRange} Birr | Available: ${worker.isAvailable}",
+          "\n- ID: ${n['id']} | Title: ${n['title']} | Body: ${n['body']} | Type: ${n['type']}",
         );
       }
     }
     return buffer.toString();
-  }
-
-  Stream<GenerateContentResponse> sendMessage(String message) async* {
-    if (_chatSession == null) {
-      throw Exception(
-        "Chat not initialized. Call initializePersonalizedChat first.",
-      );
-    }
-    final responseStream = _chatSession!.sendMessageStream(
-      Content.text(message),
-    );
-    await for (final chunk in responseStream) {
-      if (chunk.text != null) {
-        yield chunk;
-      }
-    }
   }
 
   Stream<GenerateContentResponse> sendMessageStream(Content content) {

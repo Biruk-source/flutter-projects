@@ -6,6 +6,7 @@ import 'package:flutter_telebirr/flutter_telebirr.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'firebase_options.dart';
 import 'screens/home_screen.dart';
 import 'screens/jobs/create_job_screen.dart';
@@ -26,6 +27,7 @@ import 'providers/locale_provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
   await Supabase.initialize(
     url: 'https://sitvpubcpqjsypqmnfem.supabase.co',
     anonKey:
@@ -302,7 +304,7 @@ class _MainScreenState extends State<MainScreen> {
 
   void _initializeScreensAndNavItems() {
     final appStrings = AppLocalizations.of(context);
-    _userType ??= 'client'; 
+    _userType ??= 'client';
     if (appStrings == null) {
       print(
         "MainScreen Warning: AppLocalizations was null during init. Using fallbacks.",
@@ -355,7 +357,7 @@ class _MainScreenState extends State<MainScreen> {
 
     if (mounted && _selectedIndex >= _screens.length) {
       _selectedIndex = 0;
-    } 
+    }
     print(
       "MainScreen: Initialized UI for $_userType with locale ${appStrings.locale.languageCode}.",
     );
@@ -394,7 +396,7 @@ class _MainScreenState extends State<MainScreen> {
     }
     print("MainScreen: Initialized UI for $_userType with FALLBACK keys.");
     if (mounted && _selectedIndex >= _screens.length) {
-      _selectedIndex = 0; 
+      _selectedIndex = 0;
     }
   }
 

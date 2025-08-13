@@ -9,7 +9,11 @@ abstract class AppStrings {
   Locale get locale;
 
   String get appName;
-  // --- General ---
+
+  String get workerDetailLocation;
+  String get workerDetailMapLaunchError;
+  String get workerDetailEta;
+  String get workerDetailViewOnMap;
   String get appTitle;
   String get highContrastTooltip;
   String get specifyInDescription;
@@ -62,7 +66,7 @@ abstract class AppStrings {
   String get performanceOverviewTitle;
   String get failedToMakeCall;
   String
-      get submitReviewButton; // Ensure this is also present if missing from your abstract
+  get submitReviewButton; // Ensure this is also present if missing from your abstract
   String get errorConnectivityCheck;
   String get errorActionFailed;
   String get errorCouldNotLaunchUrl;
@@ -150,6 +154,11 @@ abstract class AppStrings {
   String workerDetailReviews(int count);
   String get workerDetailLeaveReview;
   String get workerDetailHireNow;
+  String get workerDetailWeeklyAvailability;
+  String get errorLoadingAvailability;
+  String get noAvailabilityData;
+  String get booked;
+
   String get workerDetailWorking;
   String get workerDetailCall;
   String get workerDetailSubmitReview;
@@ -199,7 +208,10 @@ abstract class AppStrings {
   String get workerDetailNoCerts;
   String get generalClose;
   String workerDetailShareMessage(
-      String workerName, String profession, String phone);
+    String workerName,
+    String profession,
+    String phone,
+  );
 
   // --- Notifications ---
   String get notificationTitle;
@@ -730,51 +742,51 @@ class AppStringsEn implements AppStrings {
 
   @override
   Map<String, List<String>> get jobCategoriesAndSkills => {
-        'Plumbing': [
-          'Leak Repair',
-          'Pipe Installation',
-          'Drain Cleaning',
-          'Faucet Fix',
-          'Toilet Repair',
-          'Water Heater'
-        ],
-        'Electrical': [
-          'Wiring',
-          'Outlet Repair',
-          'Lighting Installation',
-          'Circuit Breaker',
-          'Fan Installation',
-          'Appliance Repair'
-        ],
-        'Cleaning': [
-          'Home Cleaning',
-          'Office Cleaning',
-          'Deep Cleaning',
-          'Window Washing',
-          'Carpet Cleaning'
-        ],
-        'Painting': [
-          'Interior Painting',
-          'Exterior Painting',
-          'Wall Preparation',
-          'Furniture Painting'
-        ],
-        'Carpentry': [
-          'Furniture Assembly',
-          'Door Repair',
-          'Shelf Installation',
-          'Wood Repair'
-        ],
-        'Gardening': ['Lawn Mowing', 'Planting', 'Weeding', 'Tree Trimming'],
-        'Moving': ['Loading/Unloading', 'Packing', 'Furniture Moving'],
-        'Handyman': [
-          'General Repairs',
-          'Mounting TV',
-          'Picture Hanging',
-          'Minor Fixes'
-        ],
-        'Other': ['Specify in Description']
-      };
+    'Plumbing': [
+      'Leak Repair',
+      'Pipe Installation',
+      'Drain Cleaning',
+      'Faucet Fix',
+      'Toilet Repair',
+      'Water Heater',
+    ],
+    'Electrical': [
+      'Wiring',
+      'Outlet Repair',
+      'Lighting Installation',
+      'Circuit Breaker',
+      'Fan Installation',
+      'Appliance Repair',
+    ],
+    'Cleaning': [
+      'Home Cleaning',
+      'Office Cleaning',
+      'Deep Cleaning',
+      'Window Washing',
+      'Carpet Cleaning',
+    ],
+    'Painting': [
+      'Interior Painting',
+      'Exterior Painting',
+      'Wall Preparation',
+      'Furniture Painting',
+    ],
+    'Carpentry': [
+      'Furniture Assembly',
+      'Door Repair',
+      'Shelf Installation',
+      'Wood Repair',
+    ],
+    'Gardening': ['Lawn Mowing', 'Planting', 'Weeding', 'Tree Trimming'],
+    'Moving': ['Loading/Unloading', 'Packing', 'Furniture Moving'],
+    'Handyman': [
+      'General Repairs',
+      'Mounting TV',
+      'Picture Hanging',
+      'Minor Fixes',
+    ],
+    'Other': ['Specify in Description'],
+  };
   @override
   String get errorInitializationFailed => "Initialization failed";
   @override
@@ -803,6 +815,15 @@ class AppStringsEn implements AppStrings {
   String get successSubscription => "Thank you for subscribing!";
   @override
   String get connectionRestored => "Internet connection restored.";
+  // Inside the 'class AppStringsEn implements AppStrings {' block
+  @override
+  String get workerDetailLocation => "Location";
+  @override
+  String get workerDetailMapLaunchError => "Failed to open map application.";
+  @override
+  String get workerDetailEta => "Estimated ETA";
+  @override
+  String get workerDetailViewOnMap => "View on Map";
   @override
   String get noInternet => "No internet connection.";
   @override
@@ -823,7 +844,10 @@ class AppStringsEn implements AppStrings {
   String get currency => "ETB";
   @override
   String workerDetailShareMessage(
-          String workerName, String profession, String phone) =>
+    String workerName,
+    String profession,
+    String phone,
+  ) =>
       'Check out this professional on FixIt: $workerName ($profession). Contact: $phone';
   @override
   String get emailVerifiedSuccess => "Email successfully verified!";
@@ -993,6 +1017,14 @@ class AppStringsEn implements AppStrings {
   String get workerDetailLeaveReview => "Leave a Review";
   @override
   String get workerDetailHireNow => "Hire Now";
+  @override
+  String get workerDetailWeeklyAvailability => "Weekly Availability";
+  @override
+  String get errorLoadingAvailability => "Error loading availability";
+  @override
+  String get noAvailabilityData => "No availability data found.";
+  @override
+  String get booked => "Booked";
   @override
   String get workerDetailWorking => "Working";
   @override
@@ -2306,30 +2338,30 @@ class AppStringsAm implements AppStrings {
   String get languageToggleTooltip => "ቋንቋ ቀይር";
   @override
   Map<String, List<String>> get jobCategoriesAndSkills => {
-        'የቧንቧ ስራ': [
-          'የውሃ ጠብታ ጥገና',
-          'የቧንቧ ዝርጋታ',
-          'የፍሳሽ ማጽዳት',
-          'የውሃ ቧንቧ ጥገና',
-          'የሽንት ቤት ጥገና',
-          'የውሃ ማሞቂያ'
-        ],
-        'የኤሌክትሪክ ስራ': [
-          'የሽቦ ዝርጋታ',
-          'የሶኬት ጥገና',
-          'የመብራት ተከላ',
-          'ሰርኪዩት ብሬከር',
-          'የማራገቢያ ተከላ',
-          'የቤት እቃ ጥገና'
-        ],
-        'ጽዳት': ['የቤት ጽዳት', 'የቢሮ ጽዳት', 'ጥልቅ ጽዳት', 'የመስኮት ጽዳት', 'ምንጣፍ ጽዳት'],
-        'ቀለም ቅብ': ['የቤት ውስጥ ቀለም', 'የውጭ ቀለም', 'የግድግዳ ዝግጅት', 'የቤት እቃ ቀለም'],
-        'የእንጨት ስራ': ['የቤት እቃ ገጣጠም', 'የበር ጥገና', 'የመደርደሪያ ተከላ', 'የእንጨት ጥገና'],
-        'አትክልተኝነት': ['የሣር ማጨድ', 'መትከል', 'አረም መንቀል', 'የዛፍ ቅርንጫፍ መቁረጥ'],
-        'ዕቃ ማጓጓዝ': ['መጫን/ማውረድ', 'ማሸግ', 'የቤት ዕቃ ማንቀሳቀስ'],
-        'የእጅ ባለሙያ': ['አጠቃላይ ጥገና', 'ቴሌቪዥን መስቀል', 'ፎቶ መስቀል', 'ጥቃቅን ጥገናዎች'],
-        'ሌላ': ['በመግለጫው ውስጥ ይግለጹ']
-      };
+    'የቧንቧ ስራ': [
+      'የውሃ ጠብታ ጥገና',
+      'የቧንቧ ዝርጋታ',
+      'የፍሳሽ ማጽዳት',
+      'የውሃ ቧንቧ ጥገና',
+      'የሽንት ቤት ጥገና',
+      'የውሃ ማሞቂያ',
+    ],
+    'የኤሌክትሪክ ስራ': [
+      'የሽቦ ዝርጋታ',
+      'የሶኬት ጥገና',
+      'የመብራት ተከላ',
+      'ሰርኪዩት ብሬከር',
+      'የማራገቢያ ተከላ',
+      'የቤት እቃ ጥገና',
+    ],
+    'ጽዳት': ['የቤት ጽዳት', 'የቢሮ ጽዳት', 'ጥልቅ ጽዳት', 'የመስኮት ጽዳት', 'ምንጣፍ ጽዳት'],
+    'ቀለም ቅብ': ['የቤት ውስጥ ቀለም', 'የውጭ ቀለም', 'የግድግዳ ዝግጅት', 'የቤት እቃ ቀለም'],
+    'የእንጨት ስራ': ['የቤት እቃ ገጣጠም', 'የበር ጥገና', 'የመደርደሪያ ተከላ', 'የእንጨት ጥገና'],
+    'አትክልተኝነት': ['የሣር ማጨድ', 'መትከል', 'አረም መንቀል', 'የዛፍ ቅርንጫፍ መቁረጥ'],
+    'ዕቃ ማጓጓዝ': ['መጫን/ማውረድ', 'ማሸግ', 'የቤት ዕቃ ማንቀሳቀስ'],
+    'የእጅ ባለሙያ': ['አጠቃላይ ጥገና', 'ቴሌቪዥን መስቀል', 'ፎቶ መስቀል', 'ጥቃቅን ጥገናዎች'],
+    'ሌላ': ['በመግለጫው ውስጥ ይግለጹ'],
+  };
   @override
   String get errorInitializationFailed => "ማስጀመር አልተሳካም";
   @override
@@ -2470,6 +2502,15 @@ class AppStringsAm implements AppStrings {
 
   @override
   String get clear => 'አጥፋ';
+  // Inside the 'class AppStringsAm implements AppStrings {' block
+  @override
+  String get workerDetailLocation => "አካባቢ";
+  @override
+  String get workerDetailMapLaunchError => "የካርታ መተግበሪያውን መክፈት አልተሳካም።";
+  @override
+  String get workerDetailEta => "የሚገመተው የመድረሻ ሰዓት";
+  @override
+  String get workerDetailViewOnMap => "በካርታ ላይ ይመልከቱ";
   @override
   String get ok => 'እሺ';
   @override
@@ -2613,6 +2654,14 @@ class AppStringsAm implements AppStrings {
   @override
   String get workerDetailHireNow => "አሁን ቀጥር";
   @override
+  String get workerDetailWeeklyAvailability => "የሳምንት ዝግጁነት";
+  @override
+  String get errorLoadingAvailability => "የዝግጁነት ማቀድ ስህተት";
+  @override
+  String get noAvailabilityData => "የዝግጁነት ተወካይ አልተገኘም";
+  @override
+  String get booked => "ተይዟል";
+  @override
   String get workerDetailWorking => "በስራ ላይ";
   @override
   String get workerDetailCall => "ደውል";
@@ -2709,8 +2758,10 @@ class AppStringsAm implements AppStrings {
   String get currency => "ብር";
   @override
   String workerDetailShareMessage(
-          String workerName, String profession, String phone) =>
-      'ይህን ባለሙያ በFixIt ይመልከቱ: $workerName ($profession). ያግኙ: $phone';
+    String workerName,
+    String profession,
+    String phone,
+  ) => 'ይህን ባለሙያ በFixIt ይመልከቱ: $workerName ($profession). ያግኙ: $phone';
 
   // Notifications
   @override
@@ -3817,7 +3868,8 @@ class AppLocalizations {
       return getStrings(provider.locale);
     } catch (e) {
       debugPrint(
-          "Error getting AppLocalizations via Provider: $e. Using default (English).");
+        "Error getting AppLocalizations via Provider: $e. Using default (English).",
+      );
       return _localizedValues['en']!; // Fallback
     }
   }

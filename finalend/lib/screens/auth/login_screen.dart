@@ -6,7 +6,6 @@ import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:google_fonts/google_fonts.dart'; // <-- 1. ADDED for custom font
 import 'package:provider/provider.dart';
 
-// --- Your Project Imports ---
 import '../../services/auth_service.dart';
 import '../../services/app_string.dart';
 import '../../providers/locale_provider.dart';
