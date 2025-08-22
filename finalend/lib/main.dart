@@ -12,7 +12,7 @@ import 'screens/home_screen.dart';
 import 'screens/jobs/create_job_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/profile_screen.dart';
-import 'screens/job_history_screen.dart';
+
 import 'screens/professional_setup_screen.dart';
 import 'screens/jobs/job_dashboard_screen.dart';
 import 'screens/professional_setup_edit.dart';
@@ -20,9 +20,14 @@ import 'services/auth_service.dart';
 import 'services/app_string.dart';
 
 import 'theme/light_colors.dart';
-
+import 'services/notification_service.dart';
 import 'providers/theme_provider.dart';
 import 'providers/locale_provider.dart';
+import 'services/firebase_service.dart';
+import 'models/job.dart';
+import 'screens/jobs/job_detail_screen.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -44,6 +49,7 @@ void main() async {
     mode: Mode.test,
     testUrl: "...",
   );
+  await NotificationService().init();
 
   runApp(
     MultiProvider(
@@ -56,8 +62,41 @@ void main() async {
   );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> {
+  @override
+  void initState() {
+    super.initState();
+    _setupNotificationTapHandling();
+  }
+
+  void _setupNotificationTapHandling() {
+    // Listen to the correct stream: onNotificationTapped
+    NotificationService().onNotificationTapped.stream.listen((String? payload) {
+      if (payload != null && payload.isNotEmpty) {
+        print("✅ System notification tapped with payload (jobId): $payload");
+        FirebaseService().getJobById(payload).then((Job? job) {
+          if (job != null) {
+            navigatorKey.currentState?.push(
+              MaterialPageRoute(
+                builder: (context) => JobDetailScreen(job: job),
+              ),
+            );
+          } else {
+            print(
+              "❌ Tapped notification for a job that could not be found (ID: $payload)",
+            );
+          }
+        });
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,9 +104,9 @@ class MyApp extends StatelessWidget {
     final localeProvider = context.watch<LocaleProvider>();
 
     return MaterialApp(
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
-      title: 'FixIt', // Can be localized later
-
+      title: 'FixIt',
       localizationsDelegates: const [
         AppLocalizations.delegate,
         GlobalMaterialLocalizations.delegate,
@@ -75,19 +114,14 @@ class MyApp extends StatelessWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: const [
-        Locale('en', ''), // English
-        Locale('am', ''), // Amharic
-        Locale('om', ''), // Oromo
+        Locale('en', ''),
+        Locale('am', ''),
+        Locale('om', ''),
       ],
       locale: localeProvider.locale,
-      // ----------------------------------------------------
-
-      // --- Theme Setup ---
       theme: AppThemes.lightTheme,
       darkTheme: AppThemes.darkTheme,
       themeMode: themeProvider.themeMode,
-
-      // -----------------
       initialRoute: '/',
       routes: {
         '/': (context) => const AuthWrapper(),
@@ -98,7 +132,6 @@ class MyApp extends StatelessWidget {
         '/jobs': (context) => const JobDashboardScreen(),
         '/profile': (context) => const ProfileScreen(),
         '/post-job': (context) => const CreateJobScreen(),
-        '/history': (context) => const JobHistoryScreen(),
       },
     );
   }
@@ -113,8 +146,9 @@ class AuthWrapper extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final AuthService authService = AuthService();
-    final appStrings = AppLocalizations.of(context); // Get strings safely
-
+    final appStrings = AppLocalizations.of(context); 
+    final _firebaseService = FirebaseService(); 
+     
     return FutureBuilder<bool>(
       future: Future(() => authService.isUserLoggedIn()),
       builder: (context, snapshot) {
@@ -133,6 +167,7 @@ class AuthWrapper extends StatelessWidget {
           // Consider showing a generic error screen
           return const LoginScreen();
         }
+         _firebaseService.setupNotificationListener();
         final bool isLoggedIn = snapshot.data ?? false;
         print("AuthWrapper: User logged in = $isLoggedIn");
         return isLoggedIn ? const MainScreen() : const LoginScreen();

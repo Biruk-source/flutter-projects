@@ -1,3 +1,4 @@
+// lib/screens/worker_detail_screen.dart
 import 'dart:ui' as ui; // For ImageFilter.blur
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';

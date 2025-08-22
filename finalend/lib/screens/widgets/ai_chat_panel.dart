@@ -1,8 +1,7 @@
 // lib/ui/panels/ai_chat_panel.dart
 
-import 'dart:async';
-import 'dart:convert';
-import 'dart:ui';
+import 'dart:convert'; // <-- FIX: Added for jsonDecode
+import 'dart:ui'; // <-- FIX: Added for ImageFilter
 import 'package:animate_do/animate_do.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -12,7 +11,7 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-
+import 'package:image/image.dart' as img; // For fixing image decoding errors
 import '../../models/chat_messageai.dart';
 import '../../models/worker.dart';
 import '../../services/ai_chat_service.dart';
@@ -50,6 +49,7 @@ class _AiChatPanelState extends State<AiChatPanel> {
   bool _isLoading = false;
 
   Uint8List? _pickedImageBytes;
+  String? _pickedImageMimeType;
 
   static const List<String> _suggestedPrompts = [
     "Find me a plumber near me",
@@ -62,7 +62,9 @@ class _AiChatPanelState extends State<AiChatPanel> {
   void initState() {
     super.initState();
     _initializeTts();
-    _textController.addListener(() => mounted ? setState(() {}) : null);
+    _textController.addListener(() {
+      if (mounted) setState(() {});
+    });
 
     widget.aiChatService
         .initializePersonalizedChat()
@@ -129,7 +131,6 @@ class _AiChatPanelState extends State<AiChatPanel> {
   Future<void> _setVoice() async {
     try {
       await _flutterTts.setLanguage("am-ET");
-      // Optional: Add logic to check for Amharic voice availability
     } catch (e) {
       await _flutterTts.setLanguage("en-US");
     }
@@ -163,6 +164,7 @@ class _AiChatPanelState extends State<AiChatPanel> {
       });
   }
 
+  // ### FIX: COMBINED AND ROBUST SEND MESSAGE FUNCTION ###
   Future<void> _sendMessage({String? prefilledText}) async {
     if (_isLoading) return;
     final text = prefilledText ?? _textController.text.trim();
@@ -170,7 +172,9 @@ class _AiChatPanelState extends State<AiChatPanel> {
 
     final messageText = text;
     final imageBytes = _pickedImageBytes;
-    final mimeType = 'image/jpeg';
+    final mimeType = _pickedImageMimeType;
+
+    int botMessageIndex = -1;
 
     setState(() {
       _isLoading = true;
@@ -181,7 +185,12 @@ class _AiChatPanelState extends State<AiChatPanel> {
           imageBytes: imageBytes,
         ),
       );
+      // Add a placeholder message and store its index
+      _messages.add(ChatMessage(text: "", messageType: MessageType.bot));
+      botMessageIndex = _messages.length - 1;
+
       _pickedImageBytes = null;
+      _pickedImageMimeType = null;
     });
 
     _textController.clear();
@@ -189,32 +198,24 @@ class _AiChatPanelState extends State<AiChatPanel> {
     _scrollToBottom();
     await _stop();
 
-    final content = (imageBytes != null)
-        ? Content.multi([
-            TextPart(messageText.isEmpty ? "Analyze this image." : messageText),
-            DataPart(mimeType, imageBytes),
-          ])
-        : Content.text(messageText);
+    final content = _buildContent(messageText, imageBytes, mimeType);
 
     try {
       final stream = widget.aiChatService.sendMessageStream(content);
       String fullResponseText = "";
-      ChatMessage? botMessage;
+      String lastDisplayedText = ""; // Tracker for deduplication
 
       await for (final chunk in stream) {
         if (chunk.text != null) {
           fullResponseText += chunk.text!;
-          if (mounted) {
+          // Only update UI if the new full text is different from what's displayed
+          if (fullResponseText != lastDisplayedText && mounted) {
             setState(() {
-              if (botMessage == null) {
-                botMessage = ChatMessage(
-                  text: fullResponseText,
-                  messageType: MessageType.bot,
-                );
-                _messages.add(botMessage!);
-              } else {
-                _messages.last.text = fullResponseText;
-              }
+              _messages[botMessageIndex] = ChatMessage(
+                text: fullResponseText,
+                messageType: MessageType.bot,
+              );
+              lastDisplayedText = fullResponseText;
             });
             _scrollToBottom();
           }
@@ -222,27 +223,52 @@ class _AiChatPanelState extends State<AiChatPanel> {
       }
     } catch (e) {
       if (mounted) {
-        setState(
-          () => _messages.add(
-            ChatMessage(
-              text: "Sorry, an error occurred: ${e.toString()}",
-              messageType: MessageType.error,
-            ),
-          ),
-        );
+        setState(() {
+          _messages[botMessageIndex] = ChatMessage(
+            text: "Sorry, an error occurred: ${e.toString()}",
+            messageType: MessageType.error,
+          );
+        });
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
+  Content _buildContent(String text, Uint8List? imageBytes, String? mimeType) {
+    if (imageBytes != null && mimeType != null) {
+      return Content.multi([
+        TextPart(text.isEmpty ? "Analyze this image." : text),
+        DataPart(mimeType, imageBytes),
+      ]);
+    } else {
+      return Content.text(text);
+    }
+  }
+
+  // ### FIX: ADDED IMAGE RE-ENCODING TO PREVENT CRASHES ###
   Future<void> _pickImage() async {
     final pickedFile = await _imagePicker.pickImage(
       source: ImageSource.gallery,
+      imageQuality: 85,
     );
-    if (pickedFile != null) {
-      final bytes = await pickedFile.readAsBytes();
-      if (mounted) setState(() => _pickedImageBytes = bytes);
+    if (pickedFile == null) return;
+
+    final bytes = await pickedFile.readAsBytes();
+
+    // Decode and re-encode as JPEG to standardize the format
+    final image = img.decodeImage(bytes);
+    if (image == null) {
+      print("Failed to decode picked image");
+      return;
+    }
+    final jpegBytes = img.encodeJpg(image, quality: 85);
+
+    if (mounted) {
+      setState(() {
+        _pickedImageBytes = jpegBytes;
+        _pickedImageMimeType = 'image/jpeg'; // Always JPEG now
+      });
     }
   }
 
@@ -259,6 +285,7 @@ class _AiChatPanelState extends State<AiChatPanel> {
   }
 
   void _onWorkerCardTapped(String workerId) async {
+    if (workerId.isEmpty) return;
     await _stop();
     final Worker? worker = await _firebaseService.getWorkerById(workerId);
     if (worker != null && mounted) {
@@ -328,6 +355,7 @@ class _AiChatPanelState extends State<AiChatPanel> {
   }
 
   Widget _buildHeader(ThemeData theme) {
+    // ... no changes
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
       child: Row(
@@ -369,7 +397,7 @@ class _AiChatPanelState extends State<AiChatPanel> {
   }
 
   Widget _buildSuggestedPrompts(ThemeData theme) {
-    // This now also handles the initial welcome message
+    // ... no changes
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -424,6 +452,7 @@ class _AiChatPanelState extends State<AiChatPanel> {
   }
 
   Widget _buildMessageBubble(ChatMessage message, ThemeData theme) {
+    // ... no changes
     final isUser = message.messageType == MessageType.user;
     return FadeInUp(
       from: 20,
@@ -438,6 +467,7 @@ class _AiChatPanelState extends State<AiChatPanel> {
   }
 
   Widget _buildSimpleUserBubble(ChatMessage message, ThemeData theme) {
+    // ... no changes
     return Container(
       constraints: BoxConstraints(
         maxWidth: MediaQuery.of(context).size.width * 0.75,
@@ -486,6 +516,7 @@ class _AiChatPanelState extends State<AiChatPanel> {
     );
   }
 
+  // ### FIX: ROBUST BOT MESSAGE PARSING ###
   Widget _buildBotMessage(ChatMessage message, ThemeData theme) {
     final isError = message.messageType == MessageType.error;
     final isPlaying =
@@ -493,7 +524,12 @@ class _AiChatPanelState extends State<AiChatPanel> {
 
     final jsonRegex = RegExp(r'```json\s*(\{.*?\})\s*```', dotAll: true);
     final jsonMatch = jsonRegex.firstMatch(message.text);
-    final introText = message.text.split("```json").first.trim();
+
+    // Get the raw text, before any JSON blocks
+    final rawIntroText = message.text.split("```json").first.trim();
+
+    // ### FIX: Extract only the displayable text (the part before '~') ###
+    final introText = rawIntroText.split('~').first.trim();
 
     Map<String, dynamic>? structuredData;
     if (jsonMatch != null) {
@@ -533,7 +569,8 @@ class _AiChatPanelState extends State<AiChatPanel> {
               children: [
                 Expanded(
                   child: MarkdownBody(
-                    data: introText,
+                    data:
+                        introText, // This now correctly shows only the display text
                     styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
                       p: theme.textTheme.bodyMedium?.copyWith(
                         color: isError
@@ -557,7 +594,6 @@ class _AiChatPanelState extends State<AiChatPanel> {
               ],
             ),
           ),
-
         // Structured Data (Cards)
         if (structuredData != null)
           _buildStructuredContent(structuredData, theme),
@@ -565,10 +601,11 @@ class _AiChatPanelState extends State<AiChatPanel> {
     );
   }
 
+  // ### FIX: RENDER STRUCTURED JSON DATA ###
   Widget _buildStructuredContent(Map<String, dynamic> data, ThemeData theme) {
     switch (data['type']) {
       case 'worker_list':
-        final workers = (data['workers'] as List)
+        final workers = (data['workers'] as List? ?? [])
             .map((w) => w as Map<String, dynamic>)
             .toList();
         return Column(
@@ -577,7 +614,7 @@ class _AiChatPanelState extends State<AiChatPanel> {
               .toList(),
         );
       case 'notification_list':
-        final notifications = (data['notifications'] as List)
+        final notifications = (data['notifications'] as List? ?? [])
             .map((n) => n as Map<String, dynamic>)
             .toList();
         return Column(
@@ -593,13 +630,14 @@ class _AiChatPanelState extends State<AiChatPanel> {
     }
   }
 
-  Widget _buildWorkerCard(Map<String, dynamic> worker, ThemeData theme) {
-    final workerId = worker['id'] ?? '';
-    final name = worker['name'] ?? 'Unnamed Worker';
-    final profession = worker['profession'] ?? 'No profession';
-    final rating = (worker['rating'] as num? ?? 0.0).toDouble();
-    final location = worker['location'] ?? 'Not specified';
-    final imageUrl = worker['profileImageUrl'] as String?;
+  // ### FIX: BUILD WORKER CARD FROM JSON DATA ###
+  Widget _buildWorkerCard(Map<String, dynamic> workerData, ThemeData theme) {
+    final workerId = workerData['id'] ?? '';
+    final name = workerData['name'] ?? 'Unnamed Worker';
+    final profession = workerData['profession'] ?? 'No profession';
+    final rating = (workerData['rating'] as num? ?? 0.0).toDouble();
+    final location = workerData['location'] ?? 'Not specified';
+    final imageUrl = workerData['profileImageUrl'] as String?;
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 6),
@@ -693,6 +731,7 @@ class _AiChatPanelState extends State<AiChatPanel> {
     Map<String, dynamic> notification,
     ThemeData theme,
   ) {
+    // ... no changes
     final title = notification['title'] ?? 'Notification';
     final body = notification['body'] ?? 'No details';
     final timestampStr = notification['timestamp'] as String?;
@@ -756,7 +795,6 @@ class _AiChatPanelState extends State<AiChatPanel> {
     );
   }
 
-  // (Helper from your NotificationsScreen - already great!)
   ({IconData icon, Color color}) _getIconForType(String type) {
     if (type.contains('job_request'))
       return (icon: Icons.work_outline, color: Colors.blue);
@@ -774,6 +812,7 @@ class _AiChatPanelState extends State<AiChatPanel> {
   }
 
   Widget _buildTypingIndicator(ThemeData theme) {
+    // ... no changes
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
@@ -809,6 +848,7 @@ class _AiChatPanelState extends State<AiChatPanel> {
   }
 
   Widget _buildTextInput(ThemeData theme) {
+    // ... no changes
     bool hasContent =
         _textController.text.isNotEmpty || _pickedImageBytes != null;
     return Container(
@@ -873,6 +913,7 @@ class _AiChatPanelState extends State<AiChatPanel> {
   }
 
   Widget _buildImagePreview() {
+    // ... no changes
     return FadeIn(
       child: Padding(
         padding: const EdgeInsets.only(bottom: 8.0, left: 40, right: 40),
@@ -894,7 +935,9 @@ class _AiChatPanelState extends State<AiChatPanel> {
                 backgroundColor: Colors.black54,
                 child: Icon(Icons.close, color: Colors.white, size: 18),
               ),
-              onPressed: () => setState(() => _pickedImageBytes = null),
+              onPressed: () => setState(
+                () => {_pickedImageBytes = null, _pickedImageMimeType = null},
+              ),
             ),
           ],
         ),
@@ -904,6 +947,7 @@ class _AiChatPanelState extends State<AiChatPanel> {
 }
 
 class TouchableCardWrapper extends StatefulWidget {
+  // ... no changes
   final Widget child;
   final VoidCallback onTap;
   final BorderRadius borderRadius;
@@ -921,6 +965,7 @@ class TouchableCardWrapper extends StatefulWidget {
 
 class _TouchableCardWrapperState extends State<TouchableCardWrapper>
     with SingleTickerProviderStateMixin {
+  // ... no changes
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
 

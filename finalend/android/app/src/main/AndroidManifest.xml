@@ -10,13 +10,17 @@
     
     <!-- Allows the app to request the device's approximate location (network-based) -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     
     <!-- ADDED PERMISSIONS END -->
 
     <application
         android:label="flutter_application_1"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/launcher_icon">
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/app_notification_icon" />
         <activity
             android:name=".MainActivity"
             android:exported="true"

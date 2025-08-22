@@ -14,8 +14,9 @@ abstract class AppStrings {
   String get workerDetailMapLaunchError;
   String get workerDetailEta;
   String get workerDetailViewOnMap;
+
   String get appTitle;
-  String get highContrastTooltip;
+  String get jobDetailAboutTheClient;
   String get specifyInDescription;
   String get switchedToClientView;
   String get currency;
@@ -537,6 +538,11 @@ abstract class AppStrings {
   String get jobStatusStartedWorking;
   String get myWorkDashboard;
   String get myJobsDashboard;
+  String get applicationDeletedSuccessfullyText;
+  String errorDeletingApplication(String error);
+  String get chatText;
+  String errorDecliningApplication(String error);
+  String get noApplicationsText;
   String get assignedJobsTab;
   String get myApplicationsTab;
   String get activeWorkTab;
@@ -967,6 +973,8 @@ class AppStringsEn implements AppStrings {
   String workerCardJobsDone(int count) => "$count Jobs Done";
   @override
   String workerCardYearsExp(int years) => "$years yrs Exp";
+  @override
+  String get jobDetailAboutTheClient => "job sent by:";
   @override
   String get workerCardHire => "Hire";
   @override
@@ -1897,6 +1905,23 @@ class AppStringsEn implements AppStrings {
   @override
   String get myJobsDashboardText => "My Jobs Dashboard";
   @override
+  String get applicationDeletedSuccessfullyText =>
+      "Application deleted successfully";
+
+  @override
+  String errorDeletingApplication(String error) =>
+      "Error deleting application: $error";
+
+  @override
+  String get chatText => "Chat";
+
+  @override
+  String errorDecliningApplication(String error) =>
+      "Error declining application: $error";
+
+  @override
+  String get noApplicationsText => "No applications found";
+  @override
   String get assignedJobsText => "ASSIGNED JOBS";
   @override
   String get myApplicationsText => "MY APPLICATIONS";
@@ -1919,7 +1944,7 @@ class AppStringsEn implements AppStrings {
   @override
   String get completedText => "Completed";
   @override
-  String get closedText => "Closed";
+  String get closedText => "";
   @override
   String get cancelledText => "Cancelled";
   @override
@@ -3493,6 +3518,21 @@ class AppStringsAm implements AppStrings {
   @override
   String get myJobsDashboard => "የእኔ ስራዎች ዳሽቦርድ";
   @override
+  String get applicationDeletedSuccessfullyText => "መተግበሪያው በተሳካ ሁኔታ ተሰርዟል";
+
+  @override
+  String errorDeletingApplication(String error) => "መተግበሪያ ማጥፋት አልተሳካም: $error";
+
+  @override
+  String get chatText => "ቻት";
+
+  @override
+  String errorDecliningApplication(String error) =>
+      "መተግበሪያ መቀበል አልተሳካም: $error";
+
+  @override
+  String get noApplicationsText => "መተግበሪያ አልተገኘም";
+  @override
   String get assignedJobsTab => "የተመደቡ"; // Tab title
   @override
   String get myApplicationsTab => "ማመልከቻዎቼ"; // Tab title
@@ -3568,6 +3608,8 @@ class AppStringsAm implements AppStrings {
   String jobApplicationsScreenTitle(String jobTitle) => "ለ '$jobTitle' አመልካቾች";
   @override
   String get myWorkDashboardText => "የእኔ የስራ ዳሽቦርድ";
+  @override
+  String get jobDetailAboutTheClient => "አሰር:";
   @override
   String get myJobsDashboardText => "የእኔ ስራዎች ዳሽቦርድ";
   @override

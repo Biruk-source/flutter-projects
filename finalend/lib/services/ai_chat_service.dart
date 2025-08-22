@@ -1,7 +1,7 @@
 // lib/services/ai_chat_service.dart
 
 import 'dart:async';
-import 'dart:convert';
+
 import 'package:google_generative_ai/google_generative_ai.dart';
 import '../models/job.dart';
 import '../models/user.dart';
@@ -33,22 +33,24 @@ class AiChatService {
     if (currentUser == null) {
       throw Exception("User not logged in.");
     }
-
     final results = await Future.wait<dynamic>([
       _firebaseService.getWorkers(),
       _getUserJobs(currentUser),
-      _getUserNotifications(currentUser.id).catchError((_) => []),
+      _getUserNotifications(
+        currentUser.id,
+      ).catchError((_) => []), // <-- This is where notifications are fetched
     ]);
 
     final allWorkers = results[0] as List<Worker>;
     final userJobs = results[1] as List<Job>;
-    final userNotifications = results[2] as List<Map<String, dynamic>>;
+    final userNotifications =
+        results[2] as List<Map<String, dynamic>>; // <-- Notifications are here
 
     final String fullContextPrompt = _buildFullContextPrompt(
       currentUser,
       allWorkers,
       userJobs,
-      userNotifications,
+      userNotifications, // <-- They are passed here
       maxWorkersToInclude: 50,
     );
 
@@ -57,7 +59,7 @@ class AiChatService {
         Content.text(fullContextPrompt),
         Content.model([
           TextPart(
-            "Okay, knowledge base updated. I am 'Min Atu', aware of the user, their context, and all professionals. I will now respond with structured JSON for lists and standard markdown for conversation. Ready to assist. Selam ${currentUser.name}! ምን ልርዳህ/ሽን?",
+            "Okay, knowledge base updated. I am 'Min Atu', aware of the user, their context, and all professionals. I will now respond with structured JSON for lists and standard markdown for conversation. Ready to assist. Selam ${currentUser.name}! ምን ልርዳዎት?",
           ),
         ]),
       ],
@@ -106,7 +108,7 @@ class AiChatService {
       "1. **Persona**: You are 'ምን አጡ' (Min Atu), a hyper-intelligent, creative, and energetic AI assistant. Use Amharic and English naturally. Use emojis. 😊🔥",
     );
     prompt.writeln(
-      "2. **Goal**: Prioritize user intent. Be concise, accurate, and helpful.",
+      "2. **Goal**: Prioritize user intent. Be concise, accurate, and helpful. **AVOID REPETITION AND REDUNDANT PHRASING. RESPOND DIRECTLY TO THE USER'S QUESTION OR REQUEST.**", // Added emphasis
     );
     prompt.writeln("3. **Developers**: Created by Biruk Zewude and Gemechue.");
 
@@ -120,7 +122,6 @@ class AiChatService {
     prompt.writeln(
       "3. **Spoken Text**: ALWAYS provide a spoken-word version of the response at the very end inside tildes `~...~`. This version must have NO markdown, NO links, and NO emojis.",
     );
-
     prompt.writeln("\n### JSON STRUCTURE EXAMPLES ###");
     prompt.writeln("#### Example for a list of workers:");
     prompt.writeln(
@@ -162,6 +163,9 @@ class AiChatService {
       "```\n"
       "~You have a new notification: Your job request was accepted.~",
     );
+    prompt.writeln(
+      "3. **Notification Awareness**: When the user asks about their notifications, new messages, or any updates, analyze the provided notification data and respond clearly. If there are unread notifications, state their titles or a summary. If there are none, state that.",
+    );
 
     prompt.writeln(
       "\n### REAL-TIME DATA (Date: ${DateTime.now().toIso8601String().split('T')[0]}) ###",
@@ -169,8 +173,8 @@ class AiChatService {
     prompt.writeln(
       _formatUserProfile(user).split('\n').map(_redactPII).join('\n'),
     );
-    prompt.writeln(_formatJobs(userJobs, user.role));
     prompt.writeln(_formatNotifications(notifications));
+    prompt.writeln(_formatJobs(userJobs, user.role));
 
     if (workers.isNotEmpty) {
       final sorted = List<Worker>.from(workers)

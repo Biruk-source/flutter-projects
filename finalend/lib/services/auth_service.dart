@@ -2,12 +2,18 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'firebase_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
   final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final FirebaseService _firebaseService = FirebaseService();
+  // -----------------------
+
+  // This stream is for your AuthWrapper to listen to login/logout changes.
+  Stream<User?> get authStateChanges => _auth.authStateChanges();
 
   // Get current user
   User? getCurrentUser() {
@@ -35,6 +41,7 @@ class AuthService {
           .signInWithEmailAndPassword(email: email, password: password);
 
       print('Successfully signed in user: ${userCredential.user?.uid}');
+      await _firebaseService.setupNotificationListener();
       return userCredential;
     } catch (e) {
       print('Error signing in: $e');
@@ -58,9 +65,6 @@ class AuthService {
 
       print("Found Google user silently: ${googleUser.email}");
 
-      // Optional: Authenticate with Firebase silently if needed
-      // You might not need to do this if Firebase Auth state persistence works reliably.
-      // If you *do* need it:
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
       final OAuthCredential credential = GoogleAuthProvider.credential(
@@ -69,7 +73,7 @@ class AuthService {
       );
       await _auth.signInWithCredential(credential);
       print("Firebase silent sign-in successful.");
-
+      await _firebaseService.setupNotificationListener();
       // Check if Firebase already has a user (more reliable)
       if (_auth.currentUser != null) {
         print("Firebase user already authenticated: ${_auth.currentUser!.uid}");
@@ -181,44 +185,106 @@ class AuthService {
   }
 
   Future<void> createUserProfile({
-    required String userId, // <<< MAKE SURE THIS IS REQUIRED
+    required String userId,
     required String name,
     required String email,
     required String phone,
-    required String userType,
+    required String userType, // 'client' or 'worker'
     String? profession,
     String? photoUrl,
   }) async {
-    // ... (Your implementation that checks existence and sets data) ...
     try {
       final docRefUser = _firestore.collection('users').doc(userId);
       final docRefProf = _firestore.collection('professionals').doc(userId);
+
+      // Check both locations to see if a profile already exists
       final docSnapUser = await docRefUser.get();
       final docSnapProf = await docRefProf.get();
 
       if (docSnapUser.exists || docSnapProf.exists) {
         print("User profile already exists for $userId. Skipping creation.");
-        return;
+        return; // Exit the function if a profile is found
       }
 
-      Map<String, dynamic> userData = {/* ... your user data map ... */};
-      userData['id'] = userId; // Make sure ID is set
-      userData['profileImage'] = photoUrl ?? ''; // Use photoUrl
+      print("Creating new profile for user $userId...");
 
+      // --- THIS IS THE NEW PART ---
+      // We'll use a batch write to create the profile AND the first notification atomically.
+      WriteBatch batch = _firestore.batch();
+
+      // Prepare the common user data
+      Map<String, dynamic> userData = {
+        'id': userId,
+        'name': name,
+        'email': email,
+        'phoneNumber': phone,
+        'profileImage': photoUrl ?? '',
+        'role': userType, // 'client' or 'worker'
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+
+      // Prepare the welcome notification data
+      Map<String, dynamic> welcomeNotification = {
+        'userId': userId,
+        'title': 'Welcome to Fixit! 🎉',
+        'body': 'We\'re so glad to have you. Explore the app to get started.',
+        'type': 'welcome_message',
+        'data': {
+          'jobId': '', // No specific job for a welcome message
+          // You could add a deep link to a 'getting_started' page later
+          'page': 'home',
+        },
+        'isRead': false,
+        'isArchived': false,
+        'priority': 1, // Low priority
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+
+      // Determine where to create the profile and notification
       if (userType == 'client') {
-        // ... add client specific fields ...
-        await docRefUser.set(userData);
-        print('Client profile created for user $userId');
+        // Add client-specific fields
+        userData.addAll({
+          'jobsPosted': 0,
+          'completedJobs': 0,
+          'favoriteWorkers': [],
+        });
+
+        // 1. Set the main user document in the batch
+        batch.set(docRefUser, userData);
+
+        // 2. Set the welcome notification in the subcollection
+        final notificationRef = docRefUser.collection('notifications').doc();
+        batch.set(notificationRef, welcomeNotification);
+
+        print('Client profile and welcome notification prepared for batch.');
       } else {
-        // worker
-        // ... add worker specific fields ...
-        userData['profession'] = profession ?? '';
-        userData['profileComplete'] = false; // Needs setup
-        await docRefProf.set(userData);
-        print('Worker base profile created for user $userId');
+        // 'worker'
+        // Add worker-specific fields
+        userData.addAll({
+          'profession': profession ?? '',
+          'profileComplete': false, // Worker needs to complete setup
+          'rating': 0.0,
+          'reviewCount': 0,
+          'completedJobs': 0,
+        });
+
+        // 1. Set the main professional document in the batch
+        batch.set(docRefProf, userData);
+
+        // 2. Set the welcome notification in the subcollection
+        final notificationRef = docRefProf.collection('notifications').doc();
+        batch.set(notificationRef, welcomeNotification);
+
+        print('Worker profile and welcome notification prepared for batch.');
       }
+
+      // --- Commit the batch ---
+      await batch.commit();
+      print(
+        '✅ Successfully created profile and welcome notification for user $userId.',
+      );
     } catch (e) {
-      print('Error creating/checking user profile: $e');
+      print('🔥 Error creating user profile and initial notification: $e');
       rethrow;
     }
   }
@@ -262,7 +328,9 @@ class AuthService {
       print('Signing in to Firebase with Google...');
       final UserCredential userCredential = await signInWithCredential(
         credential,
-      ); // <-- Use the corrected method
+      );
+      await _firebaseService
+          .setupNotificationListener(); // <-- Use the corrected method
       print('Firebase Google Sign In OK: ${userCredential.user?.uid}');
       if (userCredential.user != null) {
         await createUserProfile(
@@ -334,6 +402,8 @@ class AuthService {
   Future<void> signOut() async {
     try {
       await _auth.signOut();
+      _firebaseService.cancelNotificationListener();
+      await _googleSignIn.signOut();
       print('User signed out');
     } catch (e) {
       print('Error signing out: $e');

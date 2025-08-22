@@ -28,7 +28,7 @@ import 'worker_detail_screen.dart';
 import 'jobs/create_job_screen.dart';
 import 'jobs/job_detail_screen.dart';
 import 'notifications_screen.dart';
-import 'job_history_screen.dart';
+
 import 'professional_setup_screen.dart';
 import '../services/ai_chat_service.dart';
 
@@ -245,14 +245,19 @@ class _HomeScreenState extends State<HomeScreen>
     }
   }
 
-  void _listenForNotifications() {
-    // Stop any previous listener
-    _notificationsSubscription?.cancel();
+  Future<void> _listenForNotifications() async {
+    // Stop any previous listener to avoid memory leaks
+    await _notificationsSubscription?.cancel();
 
-    // Start listening to the stream from your FirebaseService
-    _notificationsSubscription = _firebaseService
-        .getUserNotificationsStream()
-        .listen((notifications) {
+    // Use the CORRECT, asynchronous method to get the stream
+    final stream = await _firebaseService.getNotificationsStream(
+      isArchived: false,
+    );
+
+    // Now, listen to the stream we correctly fetched
+    if (mounted) {
+      _notificationsSubscription = stream.listen(
+        (notifications) {
           if (mounted) {
             // Count notifications where 'isRead' is false
             final unreadCount = notifications.where((notif) {
@@ -265,7 +270,17 @@ class _HomeScreenState extends State<HomeScreen>
               _unreadNotificationsCount = unreadCount;
             });
           }
-        });
+        },
+        onError: (error) {
+          print("Error listening to notifications for badge: $error");
+          if (mounted) {
+            setState(() {
+              _unreadNotificationsCount = 0; // Reset on error
+            });
+          }
+        },
+      );
+    }
   }
 
   void _startBackgroundAnimation() {
@@ -906,6 +921,7 @@ class _HomeScreenState extends State<HomeScreen>
       child: ScaleTransition(
         scale: _fabAnimationController, // Re-use existing FAB animation
         child: FloatingActionButton(
+          heroTag: "aiChat",
           mini: true, // Make it a bit smaller
           onPressed: !_isAiServiceInitialized
               ? null
@@ -1120,9 +1136,8 @@ class _HomeScreenState extends State<HomeScreen>
                 color: iconColor, // Use provided iconColor
               ),
               tooltip: isDarkMode
-                  ? appStrings
-                        .themeTooltipLight 
-                  : appStrings.themeTooltipDark, 
+                  ? appStrings.themeTooltipLight
+                  : appStrings.themeTooltipDark,
               onPressed: () {
                 try {
                   Provider.of<ThemeProvider>(
