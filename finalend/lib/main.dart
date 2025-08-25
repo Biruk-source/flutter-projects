@@ -1,3 +1,5 @@
+// lib/main.dart
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:google_nav_bar/google_nav_bar.dart';
@@ -28,6 +30,9 @@ import 'models/job.dart';
 import 'screens/jobs/job_detail_screen.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
+// --- FIX: Create an instance of FirebaseService to be used for presence ---
+final FirebaseService _firebaseService = FirebaseService();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -69,15 +74,46 @@ class MyApp extends StatefulWidget {
   State<MyApp> createState() => _MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+// --- FIX: Add `with WidgetsBindingObserver` to manage app lifecycle ---
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void initState() {
     super.initState();
     _setupNotificationTapHandling();
+    // --- FIX: Register the observer ---
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    // --- FIX: Unregister the observer ---
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  // --- FIX: Add the lifecycle state change handler for presence ---
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    final isLoggedIn = _firebaseService.isUserLoggedIn();
+    if (!isLoggedIn) return; // Don't do anything if no user is logged in
+
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // App is in the foreground
+        _firebaseService.updateUserPresence('online');
+        break;
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden: // for web/desktop
+        // App is in the background or closed
+        _firebaseService.updateUserPresence('offline');
+        break;
+    }
   }
 
   void _setupNotificationTapHandling() {
-    // Listen to the correct stream: onNotificationTapped
     NotificationService().onNotificationTapped.stream.listen((String? payload) {
       if (payload != null && payload.isNotEmpty) {
         print("✅ System notification tapped with payload (jobId): $payload");
@@ -89,9 +125,7 @@ class _MyAppState extends State<MyApp> {
               ),
             );
           } else {
-            print(
-              "❌ Tapped notification for a job that could not be found (ID: $payload)",
-            );
+            print("❌ Tapped notification for a job that could not be found (ID: $payload)");
           }
         });
       }
@@ -100,6 +134,7 @@ class _MyAppState extends State<MyApp> {
 
   @override
   Widget build(BuildContext context) {
+    // ... rest of your build method is unchanged ...
     final themeProvider = context.watch<ThemeProvider>();
     final localeProvider = context.watch<LocaleProvider>();
 
@@ -136,6 +171,7 @@ class _MyAppState extends State<MyApp> {
     );
   }
 }
+
 
 // ============================================================
 //                 AUTH WRAPPER

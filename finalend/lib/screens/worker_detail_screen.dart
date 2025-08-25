@@ -24,6 +24,7 @@ import '../services/firebase_service.dart';
 import '../services/app_string.dart'; // For localization (assumed to exist and contain methods)
 import './jobs/create_job_screen.dart'; // Corrected path
 import './jobs/quick_job_request_screen.dart'; // Corrected path
+import './chat/conversation_pane.dart';
 
 // --- NEW CUSTOM WIDGETS FOR THIS DESIGN ---
 
@@ -256,7 +257,7 @@ enum GalleryViewType { grid, carousel }
 
 class _GallerySectionState extends State<_GallerySection> {
   String _currentFilter = 'All'; // Default filter
-  GalleryViewType _currentViewType = GalleryViewType.carousel; // Default view
+  GalleryViewType _currentViewType = GalleryViewType.grid; // Default view
 
   @override
   Widget build(BuildContext context) {
@@ -701,6 +702,7 @@ class _VideoPlayerSection extends StatelessWidget {
     );
   }
 }
+
 // ⬇️ REPLACE YOUR ENTIRE _LocationMapWidget WITH THIS CODE ⬇️
 //
 enum MapStyle { light, dark, satellite }
@@ -730,7 +732,8 @@ class _LocationMapWidget extends StatefulWidget {
 class _LocationMapWidgetState extends State<_LocationMapWidget> {
   MapStyle _currentStyle = MapStyle.satellite;
   final String _stadiaApiKey = 'ee647837-42e0-4187-9380-f4d31bc90fe9';
-  final String _openRouteServiceApiKey = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjlkZDE1MzM2N2ZmNzQ4ZDU4ZjI5NDVlY2JmYjhkMWFkIiwiaCI6Im11cm11cjY0In0=';
+  final String _openRouteServiceApiKey =
+      'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjlkZDE1MzM2N2ZmNzQ4ZDU4ZjI5NDVlY2JmYjhkMWFkIiwiaCI6Im11cm11cjY0In0=';
 
   List<LatLng> _routePoints = [];
   String? _updatedDistance;
@@ -751,10 +754,13 @@ class _LocationMapWidgetState extends State<_LocationMapWidget> {
       return;
     }
 
-    final uri = Uri.parse('https://api.openrouteservice.org/v2/directions/driving-car/geojson');
+    final uri = Uri.parse(
+      'https://api.openrouteservice.org/v2/directions/driving-car/geojson',
+    );
     final headers = {
       'Content-Type': 'application/json; charset=utf-8',
-      'Accept': 'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
+      'Accept':
+          'application/json, application/geo+json, application/gpx+xml, img/png; charset=utf-8',
       'Authorization': _openRouteServiceApiKey,
     };
     final body = json.encode({
@@ -789,7 +795,7 @@ class _LocationMapWidgetState extends State<_LocationMapWidget> {
           }
         }
       } else {
-         if (mounted) setState(() => _isLoadingRoute = false);
+        if (mounted) setState(() => _isLoadingRoute = false);
       }
     } catch (e) {
       if (mounted) setState(() => _isLoadingRoute = false);
@@ -815,7 +821,8 @@ class _LocationMapWidgetState extends State<_LocationMapWidget> {
 
     final markers = <Marker>[
       Marker(
-        width: 80.0, height: 80.0,
+        width: 80.0,
+        height: 80.0,
         point: LatLng(widget.workerLat, widget.workerLng),
         child: const Icon(Icons.location_on, color: Colors.red, size: 45.0),
       ),
@@ -824,13 +831,14 @@ class _LocationMapWidgetState extends State<_LocationMapWidget> {
     if (widget.clientLat != null && widget.clientLng != null) {
       markers.add(
         Marker(
-          width: 80.0, height: 80.0,
+          width: 80.0,
+          height: 80.0,
           point: LatLng(widget.clientLat!, widget.clientLng!),
           child: Icon(Icons.my_location, color: cs.primary, size: 35.0),
         ),
       );
     }
-    
+
     // This adds the ETA text as a marker above the worker's location pin
     if (_updatedEta != null) {
       markers.add(
@@ -839,21 +847,30 @@ class _LocationMapWidgetState extends State<_LocationMapWidget> {
           height: 80.0, // Give it more space
           point: LatLng(widget.workerLat, widget.workerLng),
           child: Align(
-            alignment: Alignment.bottomCenter, // Position it below the marker point
+            alignment:
+                Alignment.bottomCenter, // Position it below the marker point
             child: Padding(
-              padding: const EdgeInsets.only(bottom: 45.0), // Nudge it above the pin icon
+              padding: const EdgeInsets.only(
+                bottom: 45.0,
+              ), // Nudge it above the pin icon
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                 decoration: BoxDecoration(
                   color: Colors.white.withOpacity(0.8),
                   borderRadius: BorderRadius.circular(8),
-                  boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0,2))]
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
                 ),
                 child: Text(
                   _updatedEta!,
                   style: tt.labelMedium?.copyWith(
                     color: Colors.black,
-                    fontWeight: FontWeight.bold
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
@@ -886,7 +903,9 @@ class _LocationMapWidgetState extends State<_LocationMapWidget> {
         children: [
           ClipRRect(
             borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(20), topRight: Radius.circular(20)),
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
+            ),
             child: AspectRatio(
               aspectRatio: 16 / 10,
               child: Stack(
@@ -894,7 +913,10 @@ class _LocationMapWidgetState extends State<_LocationMapWidget> {
                   FlutterMap(
                     options: mapOptions,
                     children: [
-                      TileLayer(urlTemplate: _getMapUrl(), subdomains: const ['a', 'b', 'c']),
+                      TileLayer(
+                        urlTemplate: _getMapUrl(),
+                        subdomains: const ['a', 'b', 'c'],
+                      ),
                       if (_routePoints.isNotEmpty)
                         PolylineLayer(
                           polylines: [
@@ -905,25 +927,43 @@ class _LocationMapWidgetState extends State<_LocationMapWidget> {
                             ),
                           ],
                         ),
-                      MarkerLayer(markers: markers, rotate: false), // Disable marker rotation for stability
+                      MarkerLayer(
+                        markers: markers,
+                        rotate: false,
+                      ), // Disable marker rotation for stability
                     ],
                   ),
                   Positioned(
                     top: 10,
                     right: 10,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.black.withOpacity(0.4),
                         borderRadius: BorderRadius.circular(30),
                       ),
                       child: Row(
                         children: [
-                          _buildStyleChip(context, Icons.map_outlined, MapStyle.light),
+                          _buildStyleChip(
+                            context,
+                            Icons.map_outlined,
+                            MapStyle.light,
+                          ),
                           const SizedBox(width: 5),
-                          _buildStyleChip(context, Icons.dark_mode_outlined, MapStyle.dark),
+                          _buildStyleChip(
+                            context,
+                            Icons.dark_mode_outlined,
+                            MapStyle.dark,
+                          ),
                           const SizedBox(width: 5),
-                          _buildStyleChip(context, Icons.satellite_alt_outlined, MapStyle.satellite),
+                          _buildStyleChip(
+                            context,
+                            Icons.satellite_alt_outlined,
+                            MapStyle.satellite,
+                          ),
                         ],
                       ),
                     ),
@@ -931,7 +971,9 @@ class _LocationMapWidgetState extends State<_LocationMapWidget> {
                   if (_isLoadingRoute)
                     Container(
                       color: Colors.black.withOpacity(0.5),
-                      child: Center(child: CircularProgressIndicator(color: cs.primary)),
+                      child: Center(
+                        child: CircularProgressIndicator(color: cs.primary),
+                      ),
                     ),
                 ],
               ),
@@ -944,7 +986,11 @@ class _LocationMapWidgetState extends State<_LocationMapWidget> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
-                    _buildInfoColumn('Distance', _updatedDistance ?? widget.distanceText, context),
+                    _buildInfoColumn(
+                      'Distance',
+                      _updatedDistance ?? widget.distanceText,
+                      context,
+                    ),
                     _buildInfoColumn('Estimated ETA', _updatedEta, context),
                   ],
                 ),
@@ -953,17 +999,27 @@ class _LocationMapWidgetState extends State<_LocationMapWidget> {
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     onPressed: () async {
-                      final Uri uri = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=${widget.workerLat},${widget.workerLng}&travelmode=driving');
+                      final Uri uri = Uri.parse(
+                        'https://www.google.com/maps/dir/?api=1&destination=${widget.workerLat},${widget.workerLng}&travelmode=driving',
+                      );
                       if (await canLaunchUrl(uri)) {
-                        await launchUrl(uri, mode: LaunchMode.externalApplication);
+                        await launchUrl(
+                          uri,
+                          mode: LaunchMode.externalApplication,
+                        );
                       }
                     },
                     icon: Icon(Icons.directions_outlined, color: cs.primary),
-                    label: Text('View on Map', style: tt.titleMedium?.copyWith(color: cs.primary)),
+                    label: Text(
+                      'View on Map',
+                      style: tt.titleMedium?.copyWith(color: cs.primary),
+                    ),
                     style: OutlinedButton.styleFrom(
                       side: BorderSide(color: cs.primary.withOpacity(0.5)),
                       padding: const EdgeInsets.symmetric(vertical: 15),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(15),
+                      ),
                     ),
                   ),
                 ),
@@ -984,17 +1040,25 @@ class _LocationMapWidgetState extends State<_LocationMapWidget> {
         Text(title, style: tt.labelLarge?.copyWith(color: cs.onSurfaceVariant)),
         const SizedBox(height: 4),
         if (value != null)
-          Text(value, style: tt.titleLarge?.copyWith(fontWeight: FontWeight.bold, color: cs.onSurface))
+          Text(
+            value,
+            style: tt.titleLarge?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: cs.onSurface,
+            ),
+          )
         else
           SizedBox(
             height: 24,
             width: 24,
-            child: _isLoadingRoute ? const CircularProgressIndicator(strokeWidth: 2) : const Text('-'),
+            child: _isLoadingRoute
+                ? const CircularProgressIndicator(strokeWidth: 2)
+                : const Text('-'),
           ),
       ],
     );
   }
-  
+
   Widget _buildStyleChip(BuildContext context, IconData icon, MapStyle style) {
     final bool isSelected = _currentStyle == style;
     return GestureDetector(
@@ -1003,18 +1067,23 @@ class _LocationMapWidgetState extends State<_LocationMapWidget> {
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: isSelected ? Theme.of(context).colorScheme.primary : Colors.transparent,
+          color: isSelected
+              ? Theme.of(context).colorScheme.primary
+              : Colors.transparent,
           shape: BoxShape.circle,
         ),
         child: Icon(
           icon,
-          color: isSelected ? Theme.of(context).colorScheme.onPrimary : Colors.white,
+          color: isSelected
+              ? Theme.of(context).colorScheme.onPrimary
+              : Colors.white,
           size: 20,
         ),
       ),
     );
   }
 }
+
 class _BookingCalendar extends StatefulWidget {
   final AppStrings appStrings;
   final Map<DateTime, List<String>> availableSlots;
@@ -1863,26 +1932,27 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen>
       );
     }
   }
-// ⬇️ REPLACE your old _showErrorSnackbar method with this one ⬇️
+  // ⬇️ REPLACE your old _showErrorSnackbar method with this one ⬇️
 
-void _showErrorSnackbar(String m) {
-  if (!mounted) return;
-  WidgetsBinding.instance.addPostFrameCallback((_) {
+  void _showErrorSnackbar(String m) {
     if (!mounted) return;
-    final t = Theme.of(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(m, style: TextStyle(color: t.colorScheme.onError)),
-        backgroundColor: t.colorScheme.error,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final t = Theme.of(context);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(m, style: TextStyle(color: t.colorScheme.onError)),
+          backgroundColor: t.colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          margin: const EdgeInsets.all(16),
         ),
-        margin: const EdgeInsets.all(16),
-      ),
-    );
-  });
-}
+      );
+    });
+  }
+
   void _showSuccessSnackbar(String m) {
     if (!mounted) return;
     final t = Theme.of(context);
@@ -2057,7 +2127,39 @@ void _showErrorSnackbar(String m) {
     final workerIntroVideoUrl = widget.worker.introVideoUrl;
 
     return Scaffold(
-      backgroundColor: cs.background, // Use background for base
+      backgroundColor: cs.background,
+      floatingActionButton:
+          FloatingActionButton.extended(
+            onPressed: () {
+              // This is the navigation logic
+              HapticFeedback.lightImpact();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => ConversationPane(
+                    // Pass the worker's ID to the conversation screen
+                    otherUserId: widget.worker.id,
+                  ),
+                ),
+              );
+            },
+            label: Text(
+              appStrings
+                  .workerDetailChat, // Assuming you have a string for "Chat"
+              style: tt.titleMedium?.copyWith(
+                color: cs.onPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            icon: Icon(Icons.chat_bubble_outline_rounded, color: cs.onPrimary),
+            backgroundColor: cs.primary,
+            elevation: 4.0,
+          ).animate().slideY(
+            begin: 2, // Start off-screen at the bottom
+            duration: 500.milliseconds,
+            delay: 800.milliseconds, // Wait for other animations to start
+            curve: Curves.easeOutCubic,
+          ), // Use background for base
       body: Stack(
         children: [
           // Main Scrollable Content
@@ -2258,8 +2360,7 @@ void _showErrorSnackbar(String m) {
                               workerLat: widget.worker.latitude!,
                               workerLng: widget.worker.longitude!,
                               distanceText: _getDistanceText(appStrings),
-                           
-                           
+
                               clientLat: _clientLat,
                               clientLng: _clientLng,
                             )

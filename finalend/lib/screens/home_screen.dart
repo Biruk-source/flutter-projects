@@ -28,6 +28,7 @@ import 'worker_detail_screen.dart';
 import 'jobs/create_job_screen.dart';
 import 'jobs/job_detail_screen.dart';
 import 'notifications_screen.dart';
+import 'chat_screen.dart';
 
 import 'professional_setup_screen.dart';
 import '../services/ai_chat_service.dart';
@@ -739,6 +740,15 @@ class _HomeScreenState extends State<HomeScreen>
     });
   }
 
+  void _navigateToUnifiedChatScreen({String? initialSelectedUserId}) {
+    Navigator.push(
+      context,
+      _createFadeRoute(
+        UnifiedChatScreen(initialSelectedUserId: initialSelectedUserId),
+      ),
+    );
+  }
+
   void _navigateToWorkerDetails(Worker worker) {
     Navigator.push(
       context,
@@ -880,7 +890,7 @@ class _HomeScreenState extends State<HomeScreen>
           // --- ADD THE NEW OVERLAYS ---
 
           // The AI Chat Floating Button
-          _buildChatToggleButton(colorScheme),
+          _buildChatToggleButton(colorScheme, userType: _userType),
 
           if (_isAiServiceInitialized) // This check is important!
             AnimatedPositioned(
@@ -914,29 +924,33 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildChatToggleButton(ColorScheme colorScheme) {
+  Widget _buildChatToggleButton(ColorScheme colorScheme, {String? userType}) {
     return Positioned(
       top: 180, // Adjust as needed
       right: 16,
       child: ScaleTransition(
         scale: _fabAnimationController, // Re-use existing FAB animation
         child: FloatingActionButton(
-          heroTag: "aiChat",
-          mini: true, // Make it a bit smaller
+          heroTag: null,
+          mini: true,
           onPressed: !_isAiServiceInitialized
-              ? null
-              : () {
+              ? _navigateToUnifiedChatScreen
+              : userType == 'client'
+              ? () {
                   setState(() {
                     _isChatPanelVisible = !_isChatPanelVisible;
                   });
-                },
+                }
+              : _navigateToUnifiedChatScreen,
           backgroundColor: !_isAiServiceInitialized
-              ? Colors.grey
+              ? const ui.Color.fromARGB(255, 88, 242, 6)
               : colorScheme.secondary,
-          tooltip: "AI Assistant",
+          tooltip: userType == 'client' ? "AI Assistant" : "Chat",
           elevation: 4.0,
           foregroundColor: colorScheme.onSecondary,
-          child: const Icon(Icons.auto_awesome),
+          child: userType == 'client'
+              ? const Icon(Icons.auto_awesome)
+              : const Icon(Icons.chat_bubble_outline_rounded),
         ),
       ),
     );
@@ -2059,7 +2073,7 @@ class _HomeScreenState extends State<HomeScreen>
         opacity: _fabAnimationController,
         child: FloatingActionButton.extended(
           onPressed: isClient
-              ? () => _navigateToCreateJob()
+              ? () => _navigateToUnifiedChatScreen()
               : _navigateToCreateProfile,
           backgroundColor: fabBackgroundColor,
           foregroundColor: fabForegroundColor,
@@ -2072,13 +2086,13 @@ class _HomeScreenState extends State<HomeScreen>
             padding: const EdgeInsets.only(right: 6.0),
             child: Icon(
               isClient
-                  ? Icons.post_add_rounded
+                  ? Icons.chat_bubble_outline_rounded
                   : Icons.person_pin_circle_rounded,
               size: 24,
             ),
           ),
           label: Text(
-            isClient ? appStrings.fabPostJob : appStrings.fabMyProfile,
+            isClient ? appStrings.workerDetailChat : appStrings.fabMyProfile,
             style: textTheme.labelLarge?.copyWith(
               fontSize: 16,
               color: fabForegroundColor,
@@ -2086,7 +2100,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
           ), // Localized
           tooltip: isClient
-              ? appStrings.fabPostJobTooltip
+              ? appStrings.workerDetailChat
               : appStrings.fabMyProfileTooltip, // Localized
         ),
       ),

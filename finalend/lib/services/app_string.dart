@@ -9,6 +9,7 @@ abstract class AppStrings {
   Locale get locale;
 
   String get appName;
+  String get workerDetailChat;
 
   String get workerDetailLocation;
   String get workerDetailMapLaunchError;
@@ -910,6 +911,8 @@ class AppStringsEn implements AppStrings {
   String get navFeed => "Feed";
   @override
   String get navMyJobs => "My Jobs";
+  @override
+  String get workerDetailChat => "Chat";
   @override
   String get navSetup => "Setup";
   @override
@@ -3092,6 +3095,8 @@ class AppStringsAm implements AppStrings {
   String get couldNotLoadVideo => "ቪዲዮውን መጫን አልተቻለም።";
   @override
   String get videoLoadFailed => "ቪዲዮ መጫን አልተሳካም።";
+  @override
+  String get workerDetailChat => "ለማውራት";
   @override
   String get cannotPlayVideoNoInternet => "ያለ ኢንተርኔት ቪዲዮ ማጫወት አይቻልም።";
   @override

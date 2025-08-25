@@ -82,21 +82,34 @@ class NotificationService {
 
   /// Shows a rich notification with a large image.
   /// This is the core function that handles network images and local placeholders.
+  // NEW AND CORRECT METHOD
+
+  /// Shows a rich notification.
+  /// For chat messages, provide an `imageUrl` to show the sender's avatar as a small icon.
+  /// For other notifications, the `imageUrl` can be used for a large picture style.
   Future<void> showRichNotification({
     required String title,
     required String body,
     String? imageUrl,
     required String payload,
+    bool isChatMessage = false, // ADD THIS NEW PARAMETER
   }) async {
     // This helper function will download the image OR get the local placeholder path
     final String? imagePath = await _prepareImageForNotification(imageUrl);
+    final AndroidBitmap<Object>? largeIcon = imagePath != null
+        ? FilePathAndroidBitmap(imagePath)
+        : null;
 
-    // Create the "big picture" style for Android using the image path
-    final BigPictureStyleInformation? bigPictureStyleInformation =
-        imagePath != null && imagePath.isNotEmpty
+    // --- THIS IS THE KEY LOGIC CHANGE ---
+
+    // For chat messages, we want a simple style with a large icon.
+    // For other notifications, we can show a big picture.
+    final StyleInformation? styleInformation = isChatMessage
+        ? BigTextStyleInformation(body) // Shows more text when expanded
+        : largeIcon != null
         ? BigPictureStyleInformation(
-            FilePathAndroidBitmap(imagePath),
-            largeIcon: FilePathAndroidBitmap(imagePath),
+            largeIcon, // The big picture itself
+            largeIcon: largeIcon, // The small icon when collapsed
             contentTitle: title,
             summaryText: body,
           )
@@ -109,12 +122,22 @@ class NotificationService {
       channelDescription: 'Channel for important app notifications.',
       importance: Importance.max,
       priority: Priority.high,
-      styleInformation: bigPictureStyleInformation,
+      styleInformation: styleInformation,
+      largeIcon:
+          largeIcon, // <-- THIS IS THE PROPERTY FOR THE SMALL CIRCLE ICON
       icon: 'app_notification_icon',
     );
 
-    const DarwinNotificationDetails iOSPlatformChannelSpecifics =
-        DarwinNotificationDetails(presentSound: true);
+    // For iOS, we can add the image as an attachment.
+    final DarwinNotificationDetails iOSPlatformChannelSpecifics =
+        DarwinNotificationDetails(
+          presentSound: true,
+          attachments: imagePath != null
+              ? <DarwinNotificationAttachment>[
+                  DarwinNotificationAttachment(imagePath),
+                ]
+              : null,
+        );
 
     final NotificationDetails platformChannelSpecifics = NotificationDetails(
       android: androidPlatformChannelSpecifics,
@@ -130,9 +153,6 @@ class NotificationService {
     );
   }
 
-  /// --- CRASH-PROOF IMAGE HANDLING ---
-  /// Decides whether to download a network image or use a local placeholder.
-  /// Returns the local file path to the final image.
   Future<String?> _prepareImageForNotification(String? url) async {
     // If the URL is valid and starts with http, try to download it.
     if (url != null && url.trim().startsWith('http')) {

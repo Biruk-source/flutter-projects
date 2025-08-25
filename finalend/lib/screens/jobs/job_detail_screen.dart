@@ -1,3 +1,5 @@
+// lib/screens/jobs/job_detail_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -9,9 +11,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 // --- Project Imports ---
 import '../../models/job.dart';
 import '../../models/worker.dart';
-import '../../models/user.dart'; // Needed for AppUser
+import '../../models/user.dart';
 import '../../services/firebase_service.dart';
-import '../../services/app_string.dart'; // For localization
+import '../../services/app_string.dart';
 import '../payment/payment_screen.dart';
 import '../chat_screen.dart';
 
@@ -97,7 +99,6 @@ class _JobDetailContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final appStrings = AppLocalizations.of(context);
-
     final isJobOwner = job.seekerId == currentUserId;
 
     String? headerImageUrl = job.attachments.isNotEmpty
@@ -126,10 +127,7 @@ class _JobDetailContent extends StatelessWidget {
                 const SizedBox(height: 24),
                 _buildDetailRows(theme, appStrings),
                 const Divider(height: 40, thickness: 0.5),
-
-                // NEW: Client Info Section
                 _buildClientInfoSection(theme, appStrings),
-
                 _buildSection(
                   title: appStrings?.jobDetailDescriptionLabel ?? 'Description',
                   content: Text(
@@ -151,18 +149,16 @@ class _JobDetailContent extends StatelessWidget {
                     content: _buildAttachmentsGrid(theme, context, appStrings),
                     theme: theme,
                   ),
-
                 _buildAssignedWorkerSection(theme, appStrings),
+                if (job.workerId != null && job.workerId!.isNotEmpty)
+                  _buildReviewsSection(theme, appStrings, job.workerId!),
                 _buildApplicantsSection(theme, isJobOwner, appStrings),
-
                 const SizedBox(height: 32),
-
                 _ActionButtons(
                   job: job,
                   currentUserId: currentUserId,
                   firebaseService: firebaseService,
                 ),
-
                 const SizedBox(height: 40),
               ],
             ),
@@ -172,7 +168,6 @@ class _JobDetailContent extends StatelessWidget {
     );
   }
 
-  // NEW WIDGET: Fetches and displays the client's information
   Widget _buildClientInfoSection(ThemeData theme, AppStrings? appStrings) {
     return _buildSection(
       title: appStrings?.jobDetailAboutTheClient ?? 'About the Client',
@@ -237,6 +232,20 @@ class _JobDetailContent extends StatelessWidget {
                   title: Text(appStrings?.profileEditButton ?? 'Edit Job'),
                 ),
               ),
+              if (job.workerId != null &&
+                  job.workerId!.isNotEmpty &&
+                  job.status.toLowerCase() != 'completed' &&
+                  job.status.toLowerCase() != 'paycompleted')
+                PopupMenuItem(
+                  value: 'change_worker',
+                  child: ListTile(
+                    leading: Icon(
+                      Icons.change_circle_outlined,
+                      color: theme.colorScheme.secondary,
+                    ),
+                    title: Text('Change Worker'),
+                  ),
+                ),
               PopupMenuItem(
                 value: 'delete',
                 child: ListTile(
@@ -316,7 +325,62 @@ class _JobDetailContent extends StatelessWidget {
       );
     } else if (value == 'delete') {
       _showDeleteConfirmation(context, appStrings);
+    } else if (value == 'change_worker') {
+      _showChangeWorkerConfirmation(context, appStrings);
     }
+  }
+
+  void _showChangeWorkerConfirmation(
+    BuildContext context,
+    AppStrings? appStrings,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Change Assigned Worker?'),
+        content: Text(
+          'This will remove the current worker and reopen the job for applications. The current worker will be notified. Are you sure?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(appStrings?.generalCancel ?? 'Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                // NOTE: Assumes `changeAssignedWorker` exists in FirebaseService
+                await firebaseService.changeAssignedWorker(
+                  jobId: job.id,
+                  clientId: job.seekerId,
+                  currentlyAssignedWorkerId: job.workerId!,
+                );
+                if (context.mounted)
+                  _showSnackbar(
+                    context,
+                    'Worker has been unassigned. The job is now open.',
+                    isError: false,
+                  );
+              } catch (e) {
+                if (context.mounted)
+                  _showSnackbar(
+                    context,
+                    'Failed to change worker.',
+                    isError: true,
+                  );
+              }
+            },
+            child: Text(
+              'Confirm',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showDeleteConfirmation(BuildContext context, AppStrings? appStrings) {
@@ -571,6 +635,21 @@ class _JobDetailContent extends StatelessWidget {
     );
   }
 
+  Widget _buildReviewsSection(
+    ThemeData theme,
+    AppStrings? appStrings,
+    String workerId,
+  ) {
+    return _buildSection(
+      title: 'Reviews for this Worker',
+      content: _ReviewList(
+        workerId: workerId,
+        firebaseService: firebaseService,
+      ),
+      theme: theme,
+    );
+  }
+
   Widget _buildApplicantsSection(
     ThemeData theme,
     bool isJobOwner,
@@ -711,19 +790,16 @@ class _JobDetailContent extends StatelessWidget {
   }
 }
 
-// --- (All other widgets like _ActionButtons, _JobDetailShimmer, etc. go here) ---
-// ... (Paste the rest of the widgets from your previous prompt here) ...
+// --- Action Buttons ---
 class _ActionButtons extends StatefulWidget {
   final Job job;
   final String? currentUserId;
   final FirebaseService firebaseService;
-
   const _ActionButtons({
     required this.job,
     this.currentUserId,
     required this.firebaseService,
   });
-
   @override
   __ActionButtonsState createState() => __ActionButtonsState();
 }
@@ -748,35 +824,17 @@ class __ActionButtonsState extends State<_ActionButtons> {
 
         final isJobOwner = widget.job.seekerId == widget.currentUserId;
         final isWorkerUser = userSnapshot.data?.role == 'worker';
+        final isAssignedWorker = widget.job.workerId == widget.currentUserId;
         final hasApplied = widget.job.applications.contains(
           widget.currentUserId,
         );
+        final status = widget.job.status.toLowerCase();
 
-        // --- Worker Actions ---
         if (isWorkerUser) {
-          if (widget.job.status == 'open' && !hasApplied) {
-            return _ActionButton(
-              label: appStrings?.jobDetailActionApply ?? 'Apply Now',
-              icon: Icons.send_rounded,
-              onPressed: _applyForJob,
-            );
-          }
-          if (widget.job.status == 'open' && hasApplied) {
-            return _ConfirmationBox(
-              text:
-                  appStrings?.jobDetailActionApplied ??
-                  'You have applied for this job.',
-              icon: Icons.check_circle_outline_rounded,
-              color: theme.colorScheme.tertiary,
-            );
-          }
-          if (widget.job.workerId == widget.currentUserId &&
-              [
-                'assigned',
-                'in_progress',
-                'started working',
-              ].contains(widget.job.status.toLowerCase())) {
+          if (isAssignedWorker && status != 'open') {
+            // ... code for assigned worker (no change here) ...
             return Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 _ActionButton(
                   label:
@@ -787,63 +845,128 @@ class __ActionButtonsState extends State<_ActionButtons> {
                       _navigateToChat(context, widget.job.seekerId),
                   backgroundColor: theme.colorScheme.secondary,
                 ),
-                const SizedBox(height: 12),
-                _ActionButton(
-                  label:
-                      appStrings?.jobDetailActionMarkComplete ??
-                      'Mark as Completed',
-                  icon: Icons.task_alt_rounded,
-                  onPressed: _markJobAsCompleted,
-                  backgroundColor: Colors.green.shade700,
+                if (status != 'completed' && status != 'paycompleted') ...[
+                  const SizedBox(height: 12),
+                  _ActionButton(
+                    label:
+                        appStrings?.jobDetailActionMarkComplete ??
+                        'Mark as Completed',
+                    icon: Icons.task_alt_rounded,
+                    onPressed: _markJobAsCompleted,
+                    backgroundColor: Colors.green.shade700,
+                  ),
+                ],
+              ],
+            );
+          }
+          if (status == 'open' && !hasApplied) {
+            // --- THIS IS THE MAIN FIX ---
+            return Row(
+              children: [
+                // MESSAGE BUTTON
+                Expanded(
+                  child: OutlinedButton.icon(
+                    icon: const Icon(
+                      Icons.chat_bubble_outline_rounded,
+                      size: 20,
+                    ),
+                    label: Text(
+                      appStrings?.jobDetailActionContactClient ?? 'Message',
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      foregroundColor: theme.colorScheme.secondary,
+                      side: BorderSide(color: theme.colorScheme.secondary),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () =>
+                        _navigateToChat(context, widget.job.seekerId),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // APPLY BUTTON
+                Expanded(
+                  flex: 2, // Make the apply button slightly larger
+                  child: _ActionButton(
+                    label: appStrings?.jobDetailActionApply ?? 'Apply Now',
+                    icon: Icons.send_rounded,
+                    onPressed: _applyForJob,
+                  ),
                 ),
               ],
+            );
+            // -------------------------
+          }
+          if (status == 'open' && hasApplied) {
+            return _ConfirmationBox(
+              text:
+                  appStrings?.jobDetailActionApplied ??
+                  'You have applied for this job.',
+              icon: Icons.check_circle_outline_rounded,
+              color: theme.colorScheme.tertiary,
             );
           }
         }
         // --- Job Owner Actions ---
         else if (isJobOwner) {
-          if (widget.job.status == 'assigned' && widget.job.workerId != null) {
-            return Column(
-              children: [
-                _ActionButton(
-                  label:
-                      appStrings?.jobDetailActionMessageWorker ??
-                      'Message Worker',
-                  icon: Icons.chat_bubble_outline_rounded,
-                  onPressed: () =>
-                      _navigateToChat(context, widget.job.workerId!),
-                  backgroundColor: theme.colorScheme.secondary,
-                ),
-                const SizedBox(height: 12),
-                _ActionButton(
-                  label:
-                      appStrings?.jobDetailActionPayNow ?? 'Proceed to Payment',
-                  icon: Icons.payment_rounded,
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => PaymentScreen(job: widget.job),
-                    ),
-                  ),
-                ),
-              ],
+          if ((status == 'assigned' ||
+                  status == 'in_progress' ||
+                  status == 'started working') &&
+              widget.job.workerId != null) {
+            return _ActionButton(
+              label:
+                  appStrings?.jobDetailActionMessageWorker ?? 'Message Worker',
+              icon: Icons.chat_bubble_outline_rounded,
+              onPressed: () => _navigateToChat(context, widget.job.workerId!),
+              backgroundColor: theme.colorScheme.secondary,
             );
           }
-          if (widget.job.status == 'completed') {
+          if (status == 'completed') {
             return _ActionButton(
-              label: appStrings?.jobDetailActionLeaveReview ?? 'Leave a Review',
-              icon: Icons.rate_review_outlined,
-              onPressed: () => _showSnackbar(
+              label: appStrings?.jobDetailActionPayNow ?? 'Proceed to Payment',
+              icon: Icons.payment_rounded,
+              onPressed: () => Navigator.push(
                 context,
-                appStrings?.jobDetailFeatureComingSoon ??
-                    'Review feature coming soon!',
-                isError: false,
+                MaterialPageRoute(
+                  builder: (context) => PaymentScreen(job: widget.job),
+                ),
               ),
             );
           }
+          if (status == 'paycompleted') {
+            return _ActionButton(
+              label: appStrings?.jobDetailActionLeaveReview ?? 'Leave a Review',
+              icon: Icons.rate_review_outlined,
+              onPressed: () =>
+                  _showReviewDialog(context, widget.job.workerId!, appStrings),
+            );
+          }
         }
-        return const SizedBox.shrink(); // Default
+        return const SizedBox.shrink();
       },
+    );
+  }
+
+  void _showReviewDialog(
+    BuildContext context,
+    String workerId,
+    AppStrings? appStrings,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surfaceContainer,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => _ReviewDialog(
+        firebaseService: widget.firebaseService,
+        workerId: workerId,
+        jobTitle: widget.job.title,
+        clientPhotoUrl: (widget.firebaseService.getCurrentUser()?.photoURL),
+      ),
     );
   }
 
@@ -888,10 +1011,9 @@ class __ActionButtonsState extends State<_ActionButtons> {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ChatScreen(
-          currentUserId: widget.currentUserId!,
-          otherUserId: otherUserId,
-          jobId: widget.job.id,
+        builder: (context) => UnifiedChatScreen(
+          // <-- FIX: Use the new name
+          initialSelectedUserId: otherUserId, // <-- FIX: Use the new parameter
         ),
       ),
     );
@@ -1096,6 +1218,10 @@ class _StatusChip extends StatelessWidget {
         color = Colors.green.shade700;
         label = appStrings?.jobStatusCompleted ?? 'COMPLETED';
         break;
+      case 'paycompleted':
+        color = Colors.teal.shade600;
+        label = 'PAID & CLOSED';
+        break;
       default:
         color = Colors.grey.shade600;
         label = (appStrings?.getStatusName(status) ?? status).toUpperCase();
@@ -1274,7 +1400,6 @@ class _ActionButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onPressed;
   final Color? backgroundColor;
-
   const _ActionButton({
     required this.label,
     required this.icon,
@@ -1343,23 +1468,16 @@ class _ConfirmationBox extends StatelessWidget {
     );
   }
 }
-// In lib/screens/jobs/job_detail_screen.dart
 
-// NEW WIDGET - CORRECTED
 class _ClientInfoCard extends StatelessWidget {
   final AppUser client;
-
   const _ClientInfoCard({required this.client});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final appStrings = AppLocalizations.of(context);
-
-    // Safely check if the profile image exists and is not empty
-    final bool hasImage =
+    final hasImage =
         client.profileImage != null && client.profileImage!.isNotEmpty;
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -1399,13 +1517,273 @@ class _ClientInfoCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                // FIX: This row now shows the number of jobs posted
-         
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ReviewDialog extends StatefulWidget {
+  final FirebaseService firebaseService;
+  final String workerId;
+  final String? jobTitle;
+  final String? clientPhotoUrl;
+
+  const _ReviewDialog({
+    required this.firebaseService,
+    required this.workerId,
+    this.jobTitle,
+    this.clientPhotoUrl,
+  });
+
+  @override
+  _ReviewDialogState createState() => _ReviewDialogState();
+}
+
+class _ReviewDialogState extends State<_ReviewDialog> {
+  double _rating = 4.0;
+  final _commentController = TextEditingController();
+  bool _isLoading = false;
+
+  Future<void> _submitReview() async {
+    if (_commentController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Please write a comment.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      await widget.firebaseService.addReview(
+        widget.workerId,
+        _commentController.text.trim(),
+        _rating,
+        jobTitle: widget.jobTitle,
+        clientPhotoUrl: widget.clientPhotoUrl,
+      );
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Review submitted successfully!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to submit review.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _commentController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+        left: 16,
+        right: 16,
+        top: 16,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Leave a Review', style: theme.textTheme.headlineSmall),
+          const SizedBox(height: 16),
+          Center(
+            child: _RatingBar(
+              rating: _rating,
+              onRatingUpdate: (rating) => setState(() => _rating = rating),
+            ),
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _commentController,
+            decoration: InputDecoration(
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              labelText: 'Share your experience',
+              alignLabelWithHint: true,
+            ),
+            maxLines: 4,
+            textCapitalization: TextCapitalization.sentences,
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _isLoading ? null : _submitReview,
+              icon: _isLoading
+                  ? const SizedBox.shrink()
+                  : const Icon(Icons.send_rounded),
+              label: _isLoading
+                  ? const CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation(Colors.white),
+                    )
+                  : const Text('Submit Review'),
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+}
+
+class _RatingBar extends StatelessWidget {
+  final double rating;
+  final Function(double) onRatingUpdate;
+  const _RatingBar({required this.rating, required this.onRatingUpdate});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: List.generate(5, (index) {
+        return IconButton(
+          onPressed: () => onRatingUpdate(index + 1.0),
+          icon: Icon(
+            index < rating ? Icons.star_rounded : Icons.star_border_rounded,
+            color: Colors.amber,
+            size: 40,
+          ),
+        );
+      }),
+    );
+  }
+}
+
+class _ReviewList extends StatelessWidget {
+  final String workerId;
+  final FirebaseService firebaseService;
+
+  const _ReviewList({required this.workerId, required this.firebaseService});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return StreamBuilder<List<Map<String, dynamic>>>(
+      stream: firebaseService.streamWorkerReviews(workerId),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData)
+          return const Center(child: CircularProgressIndicator());
+        final reviews = snapshot.data!;
+        if (reviews.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainer,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Center(child: Text('No reviews yet for this worker.')),
+          );
+        }
+        return ListView.separated(
+          itemCount: reviews.length,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemBuilder: (context, index) {
+            final review = reviews[index];
+            final hasImage =
+                review['clientPhotoUrl'] != null &&
+                review['clientPhotoUrl'].isNotEmpty;
+            return Card(
+              elevation: 0,
+              color: theme.colorScheme.surfaceContainer,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        CircleAvatar(
+                          radius: 20,
+                          backgroundImage: hasImage
+                              ? CachedNetworkImageProvider(
+                                  review['clientPhotoUrl'],
+                                )
+                              : null,
+                          child: !hasImage ? const Icon(Icons.person) : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                review['userName'] ?? 'Client',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                DateFormat.yMMMd().format(
+                                  (review['createdAt'] as Timestamp).toDate(),
+                                ),
+                                style: theme.textTheme.bodySmall,
+                              ),
+                            ],
+                          ),
+                        ),
+                        Row(
+                          children: List.generate(
+                            5,
+                            (i) => Icon(
+                              Icons.star,
+                              color: i < (review['rating'] ?? 0)
+                                  ? Colors.amber
+                                  : Colors.grey.shade300,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      review['comment'] ?? '',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+          separatorBuilder: (context, index) => const SizedBox(height: 8),
+        );
+      },
     );
   }
 }

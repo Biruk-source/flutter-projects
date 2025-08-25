@@ -13,20 +13,30 @@ import 'package:intl/intl.dart' hide TextDirection;
 import 'dart:ui' as ui;
 import 'package:another_flushbar/flushbar.dart';
 
+// --- Project Imports ---
 import '../services/firebase_service.dart';
 import '../models/job.dart';
 import '../models/worker.dart';
 import 'jobs/job_detail_screen.dart';
+import 'chat_screen.dart';
+import '../../models/chat_message.dart';
+import '../../models/user.dart' as AppUser; // Use alias to avoid conflict
 
 // --- ENUMS for Filtering and Sorting ---
 enum NotificationFilter { all, unread }
 
 enum NotificationSort { dateDesc, dateAsc, priority }
 
-enum NotificationTypeFilter { all, applications, updates, payments }
+enum NotificationTypeFilter {
+  all,
+  applications,
+  updates,
+  payments,
+  messages,
+} // ADDED messages
 
 // =======================================================================
-// === HELPER FUNCTION & CLASS
+// === HELPER FUNCTION & CLASSES
 // =======================================================================
 bool _safeReadBool(dynamic value) {
   if (value == null) return false;
@@ -40,6 +50,16 @@ class IconInfo {
   final IconData icon;
   final Color color;
   IconInfo({required this.icon, required this.color});
+}
+
+String _getFallbackImageUrl() {
+  final List<String> fallbackImages = [
+    'https://images.unsplash.com/photo-1581092921462-2b2241d9a489?w=500',
+    'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=500',
+    'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=500',
+    'https://images.unsplash.com/photo-1552664730-d307ca884978?w=500',
+  ];
+  return fallbackImages[Random().nextInt(fallbackImages.length)];
 }
 
 // =======================================================================
@@ -78,12 +98,10 @@ class _NotificationsScreenState extends State<NotificationsScreen>
 
   void _markAllAsRead(List<Map<String, dynamic>> notifications) {
     if (!mounted) return;
-
     final unreadIds = notifications
-        .where((n) => _safeReadBool(n['isRead']) == false)
+        .where((n) => !_safeReadBool(n['isRead']))
         .map((n) => n['id'] as String)
         .toList();
-
     if (unreadIds.isNotEmpty) {
       _firebaseService
           .batchUpdateNotifications(unreadIds, {'isRead': true})
@@ -100,14 +118,10 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   void _toggleMultiSelectMode({String? initialSelectionId}) {
     HapticFeedback.mediumImpact();
     setState(() {
-      if (_isMultiSelectMode) {
-        _selectedNotificationIds.clear();
-        _isMultiSelectMode = false;
-      } else {
-        _isMultiSelectMode = true;
-        if (initialSelectionId != null) {
-          _selectedNotificationIds.add(initialSelectionId);
-        }
+      _isMultiSelectMode = !_isMultiSelectMode;
+      _selectedNotificationIds.clear();
+      if (_isMultiSelectMode && initialSelectionId != null) {
+        _selectedNotificationIds.add(initialSelectionId);
       }
     });
   }
@@ -133,7 +147,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   ) async {
     final ids = List<String>.from(_selectedNotificationIds);
     if (ids.isEmpty) return;
-
     try {
       await action(ids);
       if (mounted) {
@@ -163,6 +176,78 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     }
   }
 
+  void _showDeleteAllConfirmationDialog() {
+    final isArchived = _tabController.index == 1;
+    final folderName = isArchived ? "Archived" : "Inbox";
+    showDialog(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        title: Text("Delete All in $folderName?"),
+        content: const Text(
+          "This will permanently delete all notifications in this folder. This action cannot be undone.",
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text("Cancel"),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () {
+              Navigator.of(context).pop();
+              _deleteAllNotificationsInCurrentTab();
+            },
+            child: const Text("Delete All"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteAllNotificationsInCurrentTab() async {
+    if (!mounted) return;
+    final isArchived = _tabController.index == 1;
+    final folderName = isArchived ? "Archived" : "Inbox";
+    try {
+      final notificationsStream = await _firebaseService.getNotificationsStream(
+        isArchived: isArchived,
+      );
+      final List<Map<String, dynamic>> currentNotifications =
+          await notificationsStream.first;
+      if (currentNotifications.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text("The $folderName folder is already empty.")),
+          );
+        }
+        return;
+      }
+      final List<String> notificationIds = currentNotifications
+          .map((n) => n['id'] as String)
+          .toList();
+      await _firebaseService.batchDeleteNotifications(notificationIds);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("All notifications in $folderName deleted."),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Failed to delete notifications: $e"),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -182,7 +267,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
               leading: _isMultiSelectMode
                   ? IconButton(
                       icon: const Icon(Icons.close),
-                      onPressed: () => _toggleMultiSelectMode(),
+                      onPressed: _toggleMultiSelectMode,
                     )
                   : null,
               actions: _isMultiSelectMode
@@ -191,7 +276,12 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                       IconButton(
                         icon: const Icon(Icons.select_all_outlined),
                         tooltip: "Select Mode",
-                        onPressed: () => _toggleMultiSelectMode(),
+                        onPressed: _toggleMultiSelectMode,
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_sweep_outlined),
+                        tooltip: "Delete All in Folder",
+                        onPressed: _showDeleteAllConfirmationDialog,
                       ),
                     ],
               bottom: TabBar(
@@ -211,11 +301,8 @@ class _NotificationsScreenState extends State<NotificationsScreen>
         body: TabBarView(
           controller: _tabController,
           children: [
-            // Inbox Tab
             _NotificationListView(
               key: const PageStorageKey('inbox'),
-              // This is the key part: it fetches notifications for the currently
-              // logged-in user, whether they are a client or a worker.
               streamFuture: _firebaseService.getNotificationsStream(
                 isArchived: false,
               ),
@@ -227,7 +314,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
               processNotifications: _processNotifications,
               onNotificationsLoaded: _markAllAsRead,
             ),
-            // Archived Tab
             _NotificationListView(
               key: const PageStorageKey('archived'),
               streamFuture: _firebaseService.getNotificationsStream(
@@ -239,7 +325,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   _toggleMultiSelectMode(initialSelectionId: id),
               onSelected: _onNotificationSelected,
               processNotifications: _processNotifications,
-              onNotificationsLoaded: (notifications) {}, // No action needed
+              onNotificationsLoaded: (notifications) {},
             ),
           ],
         ),
@@ -404,6 +490,8 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                 type.contains('rejected');
           case NotificationTypeFilter.payments:
             return type.contains('payment');
+          case NotificationTypeFilter.messages: // ADDED THIS CASE
+            return type == 'message_received';
           default:
             return true;
         }
@@ -463,6 +551,7 @@ class _NotificationListView extends StatefulWidget {
 }
 
 class _NotificationListViewState extends State<_NotificationListView> {
+  final FirebaseService _firebaseService = FirebaseService();
   Set<String> _currentNotificationIds = {};
   bool _isInitialLoad = true;
 
@@ -478,6 +567,9 @@ class _NotificationListViewState extends State<_NotificationListView> {
       imageUrl = data['workerImageUrl'] as String?;
     } else if (notification['type'] == 'job_accepted') {
       imageUrl = data['clientImageUrl'] as String?;
+    } else if (notification['type'] == 'message_received') {
+      // ADDED
+      imageUrl = data['senderImageUrl'] as String?;
     }
 
     Flushbar(
@@ -510,19 +602,7 @@ class _NotificationListViewState extends State<_NotificationListView> {
             : null,
       ),
       onTap: (_) {
-        final jobId = data['jobId'];
-        if (jobId != null) {
-          FirebaseService().getJobById(jobId).then((job) {
-            if (job != null && mounted) {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => JobDetailScreen(job: job),
-                ),
-              );
-            }
-          });
-        }
+        // This logic is now handled by the individual cards for more flexibility
       },
       duration: const Duration(seconds: 4),
       flushbarPosition: FlushbarPosition.TOP,
@@ -537,6 +617,41 @@ class _NotificationListViewState extends State<_NotificationListView> {
         ),
       ],
     ).show(context);
+  }
+
+  void _deleteNotification(String id) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Notification?'),
+        content: const Text('This action is permanent and cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _firebaseService.deleteNotification(id).catchError((e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text("Failed to delete notification: $e"),
+                      backgroundColor: Theme.of(context).colorScheme.error,
+                    ),
+                  );
+                }
+              });
+            },
+            child: const Text('Delete'),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -558,7 +673,6 @@ class _NotificationListViewState extends State<_NotificationListView> {
         }
 
         if (!futureSnapshot.hasData) {
-          // This can happen briefly before the stream is available
           return const _ShimmerList();
         }
 
@@ -639,6 +753,8 @@ class _NotificationListViewState extends State<_NotificationListView> {
                               widget.onLongPress(notification['id']),
                           onSelected: () =>
                               widget.onSelected(notification['id']),
+                          onDelete: () =>
+                              _deleteNotification(notification['id']),
                         ),
                       ),
                     ),
@@ -695,13 +811,16 @@ class _NotificationCardRouter extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onSelected;
   final VoidCallback onLongPress;
+  final VoidCallback onDelete;
 
   const _NotificationCardRouter({
+    super.key,
     required this.notification,
     required this.isMultiSelectMode,
     required this.isSelected,
     required this.onSelected,
     required this.onLongPress,
+    required this.onDelete,
   });
 
   @override
@@ -709,42 +828,58 @@ class _NotificationCardRouter extends StatelessWidget {
     final type = notification['type'] as String? ?? '';
     Widget card;
     switch (type) {
+      // NEW: ADDED THIS CASE FOR MESSAGES
+      case 'message_received':
+        card = _ChatMessageCard(notification: notification, onDelete: onDelete);
+        break;
       case 'job_application':
-        card = _JobApplicationCard(notification: notification);
+        card = _JobApplicationCard(
+          notification: notification,
+          onDelete: onDelete,
+        );
         break;
       case 'job_posted':
       case 'job_posted_self':
-        card = _NewJobPostedCard(notification: notification);
+        card = _NewJobPostedCard(
+          notification: notification,
+          onDelete: onDelete,
+        );
         break;
       case 'job_accepted':
       case 'job_status_update':
       case 'job_completed':
       case 'payment_required':
-        card = _JobStatusUpdateCard(notification: notification);
+        card = _JobStatusUpdateCard(
+          notification: notification,
+          onDelete: onDelete,
+        );
         break;
       default:
-        card = _GenericInfoCard(notification: notification);
+        card = _GenericInfoCard(notification: notification, onDelete: onDelete);
     }
     return GestureDetector(
       onTap: () {
         if (isMultiSelectMode) {
           onSelected();
         } else {
-          // Default tap action: Mark as read and navigate
-          final data = notification['data'] as Map<String, dynamic>? ?? {};
-          final jobId = data['jobId'];
-          FirebaseService().markNotificationAsRead(notification['id']);
-          if (jobId != null) {
-            FirebaseService().getJobById(jobId).then((job) {
-              if (job != null && context.mounted) {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => JobDetailScreen(job: job),
-                  ),
-                );
-              }
-            });
+          // --- IMPROVED TAP LOGIC ---
+          // The Chat card handles its own tap. For all others, we go to the job detail.
+          if (type != 'message_received') {
+            final data = notification['data'] as Map<String, dynamic>? ?? {};
+            final jobId = data['jobId'];
+            FirebaseService().markNotificationAsRead(notification['id']);
+            if (jobId != null) {
+              FirebaseService().getJobById(jobId).then((job) {
+                if (job != null && context.mounted) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => JobDetailScreen(job: job),
+                    ),
+                  );
+                }
+              });
+            }
           }
         }
       },
@@ -795,13 +930,209 @@ class _NotificationCardRouter extends StatelessWidget {
     );
   }
 }
+// lib/screens/notifications_screen.dart
 
 // =======================================================================
-// === JOB APPLICATION CARD
+// === REPLACEMENT CHAT MESSAGE CARD (SIMPLE AND DIRECT)
 // =======================================================================
+class _ChatMessageCard extends StatelessWidget {
+  final Map<String, dynamic> notification;
+  final VoidCallback onDelete;
+
+  const _ChatMessageCard({required this.notification, required this.onDelete});
+
+  // NEW AND CORRECT
+  void _navigateToChat(BuildContext context) {
+    FirebaseService().markNotificationAsRead(notification['id']);
+
+    final data = notification['data'] as Map<String, dynamic>? ?? {};
+    final senderId = data['senderId'] as String?;
+
+    if (senderId != null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => UnifiedChatScreen(
+            // <-- FIX: Use the new name
+            initialSelectedUserId: senderId, // <-- FIX: Use the new parameter
+          ),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Could not open chat. Data missing.")),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isRead = _safeReadBool(notification['isRead']);
+    final data = notification['data'] as Map<String, dynamic>? ?? {};
+
+    // --- THIS IS THE FIX: Read the name and image directly from the data ---
+    final senderName = data['senderName'] as String? ?? 'Someone';
+    final senderImageUrl = data['senderImageUrl'] as String?;
+    final hasImage = senderImageUrl != null && senderImageUrl.isNotEmpty;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      elevation: isRead ? 1 : 5,
+      shape: RoundedRectangleBorder(
+        side: isRead
+            ? BorderSide(color: theme.colorScheme.outlineVariant, width: 0.5)
+            : BorderSide(color: theme.colorScheme.primary, width: 1.5),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _navigateToChat(context),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      CircleAvatar(
+                        radius: 24,
+                        backgroundColor: theme.colorScheme.secondaryContainer,
+                        backgroundImage: hasImage
+                            ? CachedNetworkImageProvider(senderImageUrl!)
+                            : null,
+                        child: !hasImage
+                            ? Text(
+                                senderName.isNotEmpty
+                                    ? senderName[0].toUpperCase()
+                                    : 'S',
+                              )
+                            : null,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Message from $senderName',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '"${notification['body'] ?? ''}"',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                fontStyle: FontStyle.italic,
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 30), // Space for delete icon
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: () => _navigateToChat(context),
+                        icon: const Icon(Icons.reply_rounded, size: 18),
+                        label: const Text("Reply"),
+                        // --- STYLE TO MATCH YOUR SCREENSHOT ---
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.amber,
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Positioned(
+              top: 4,
+              right: 4,
+              child: IconButton(
+                icon: Icon(
+                  Icons.delete_outline_rounded,
+                  size: 22,
+                  color: Colors.grey.shade600,
+                ),
+                onPressed: onDelete,
+                splashRadius: 20,
+                tooltip: 'Delete Notification',
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+// =======================================================================
+// === OTHER CARDS & WIDGETS (UNCHANGED BUT INCLUDED FOR COMPLETENESS)
+// =======================================================================
+
+class _ChatButton extends StatelessWidget {
+  final Job job;
+  const _ChatButton({required this.job});
+
+  @override
+  Widget build(BuildContext context) {
+    final firebaseService = FirebaseService();
+    final currentUserId = firebaseService.getCurrentUser()?.uid;
+    if (currentUserId == null) return const SizedBox.shrink();
+
+    final isUserTheClient = job.clientId == currentUserId;
+    final otherUserId = isUserTheClient ? job.workerId : job.clientId;
+    final buttonText = isUserTheClient
+        ? "Chat with Worker"
+        : "Chat with Client";
+
+    if (otherUserId == null || otherUserId.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    return OutlinedButton.icon(
+      icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+      label: Text(buttonText),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        textStyle: Theme.of(context).textTheme.labelMedium,
+      ),
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => UnifiedChatScreen(
+              // <-- FIX: Use the new name
+              initialSelectedUserId:
+                  otherUserId, // <-- FIX: Use the new parameter
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class _JobApplicationCard extends StatefulWidget {
   final Map<String, dynamic> notification;
-  const _JobApplicationCard({required this.notification});
+  final VoidCallback onDelete;
+  const _JobApplicationCard({
+    super.key,
+    required this.notification,
+    required this.onDelete,
+  });
 
   @override
   State<_JobApplicationCard> createState() => _JobApplicationCardState();
@@ -866,7 +1197,10 @@ class _JobApplicationCardState extends State<_JobApplicationCard> {
     final workerId = data['workerId'] as String?;
 
     if (jobId == null || workerId == null) {
-      return _GenericInfoCard(notification: notification);
+      return _GenericInfoCard(
+        notification: notification,
+        onDelete: widget.onDelete,
+      );
     }
 
     return Card(
@@ -886,114 +1220,135 @@ class _JobApplicationCardState extends State<_JobApplicationCard> {
             return const _ShimmerApplicationCard();
           }
           final worker = workerSnapshot.data!;
-          return Column(
+          return Stack(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+              Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        CircleAvatar(
-                          radius: 28,
-                          backgroundImage: CachedNetworkImageProvider(
-                            worker.profileImage,
-                          ),
+                        Row(
+                          children: [
+                            CircleAvatar(
+                              radius: 28,
+                              backgroundImage: CachedNetworkImageProvider(
+                                worker.profileImage,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    notification['title'] ?? 'Job Application',
+                                    style: theme.textTheme.titleMedium
+                                        ?.copyWith(
+                                          fontWeight: FontWeight.bold,
+                                          color: theme.colorScheme.primary,
+                                        ),
+                                  ),
+                                  Text(
+                                    notification['body'] ?? '',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 30), // Space for delete icon
+                          ],
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                notification['title'] ?? 'Job Application',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: theme.colorScheme.primary,
-                                ),
-                              ),
-                              Text(
-                                notification['body'] ?? '',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: theme.colorScheme.onSurfaceVariant,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
+                        const SizedBox(height: 12),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            _buildStatChip(
+                              context,
+                              Icons.star_outline_rounded,
+                              "${worker.rating.toStringAsFixed(1)} Rating",
+                            ),
+                            _buildStatChip(
+                              context,
+                              Icons.military_tech_outlined,
+                              "${worker.experience} Yrs Exp",
+                            ),
+                            _buildStatChip(
+                              context,
+                              Icons.work_history_outlined,
+                              "${worker.completedJobs} Jobs",
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _buildStatChip(
-                          context,
-                          Icons.star_outline_rounded,
-                          "${worker.rating.toStringAsFixed(1)} Rating",
-                        ),
-                        _buildStatChip(
-                          context,
-                          Icons.military_tech_outlined,
-                          "${worker.experience} Yrs Exp",
-                        ),
-                        _buildStatChip(
-                          context,
-                          Icons.work_history_outlined,
-                          "${worker.completedJobs} Jobs",
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              FutureBuilder<Job?>(
-                future: _firebaseService.getJobById(jobId),
-                builder: (context, jobSnapshot) {
-                  if (jobSnapshot.connectionState == ConnectionState.waiting) {
-                    return Container(
-                      height: 52,
-                      color: theme.colorScheme.surfaceContainerLow,
-                      child: const Center(
-                        child: SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                      ),
-                    );
-                  }
-                  final job = jobSnapshot.data;
-                  final isJobOpen =
-                      job != null &&
-                      ['open', 'pending'].contains(job.status.toLowerCase());
-                  final isAssignedToThisWorker =
-                      job != null && job.workerId == workerId;
-
-                  return Container(
-                    color: theme.colorScheme.surfaceContainerLow,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: _isActionLoading
-                        ? const Center(
-                            child: Padding(
-                              padding: EdgeInsets.all(8.0),
+                  ),
+                  FutureBuilder<Job?>(
+                    future: _firebaseService.getJobById(jobId),
+                    builder: (context, jobSnapshot) {
+                      if (jobSnapshot.connectionState ==
+                          ConnectionState.waiting) {
+                        return Container(
+                          height: 52,
+                          color: theme.colorScheme.surfaceContainerLow,
+                          child: const Center(
+                            child: SizedBox(
+                              width: 20,
+                              height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2),
                             ),
-                          )
-                        : isJobOpen
-                        ? _buildActionButtons()
-                        : _buildStatusChip(
-                            job?.status ?? 'Unknown',
-                            isAssignedToThisWorker,
                           ),
-                  );
-                },
+                        );
+                      }
+                      final job = jobSnapshot.data;
+                      final isJobOpen =
+                          job != null &&
+                          [
+                            'open',
+                            'pending',
+                          ].contains(job.status.toLowerCase());
+
+                      return Container(
+                        color: theme.colorScheme.surfaceContainerLow,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: _isActionLoading
+                            ? const Center(
+                                child: Padding(
+                                  padding: EdgeInsets.all(8.0),
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                            : isJobOpen
+                            ? _buildActionButtons()
+                            : _buildStatusInfo(job),
+                      );
+                    },
+                  ),
+                ],
+              ),
+              Positioned(
+                top: 4,
+                right: 4,
+                child: IconButton(
+                  icon: Icon(
+                    Icons.delete_outline_rounded,
+                    size: 22,
+                    color: Colors.grey.shade600,
+                  ),
+                  onPressed: widget.onDelete,
+                  splashRadius: 20,
+                  tooltip: 'Delete Notification',
+                ),
               ),
             ],
           );
@@ -1020,25 +1375,44 @@ class _JobApplicationCardState extends State<_JobApplicationCard> {
     );
   }
 
-  Widget _buildStatusChip(String status, bool isAssignedToThisWorker) {
+  Widget _buildStatusInfo(Job? job) {
     final theme = Theme.of(context);
-    final String text;
-    final Color color;
+    if (job == null) {
+      return const Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [Text("Job info unavailable")],
+      );
+    }
+    final data = widget.notification['data'] as Map<String, dynamic>? ?? {};
+    final workerId = data['workerId'] as String?;
+    final isAssignedToThisWorker = job.workerId == workerId;
+    final statusLower = job.status.toLowerCase();
 
-    if (status.toLowerCase() == 'assigned' && isAssignedToThisWorker) {
+    String text;
+    Color color;
+
+    if (statusLower == 'completed') {
+      text = 'JOB COMPLETED';
+      color = Colors.purple.shade600;
+    } else if (statusLower == 'assigned' && isAssignedToThisWorker) {
       text = 'ACCEPTED';
       color = Colors.green.shade700;
-    } else if (status.toLowerCase() == 'assigned' && !isAssignedToThisWorker) {
+    } else if (statusLower == 'assigned' && !isAssignedToThisWorker) {
       text = 'FILLED BY ANOTHER';
       color = Colors.grey.shade600;
     } else {
-      text = status.toUpperCase();
+      text = job.status.toUpperCase();
       color = Colors.blueGrey.shade600;
     }
 
+    bool showChatButton =
+        (statusLower == 'assigned' && isAssignedToThisWorker) ||
+        statusLower == 'completed';
+
     return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
       children: [
+        if (showChatButton) _ChatButton(job: job),
+        const Spacer(),
         Chip(
           label: Text(
             text,
@@ -1052,22 +1426,14 @@ class _JobApplicationCardState extends State<_JobApplicationCard> {
   }
 }
 
-// =======================================================================
-// === NEW JOB POSTED CARD
-// =======================================================================
 class _NewJobPostedCard extends StatelessWidget {
   final Map<String, dynamic> notification;
-  const _NewJobPostedCard({required this.notification});
-
-  String _getFallbackImageUrl() {
-    final List<String> fallbackImages = [
-      'https://images.unsplash.com/photo-1581092921462-2b2241d9a489?w=500',
-      'https://images.unsplash.com/photo-1517048676732-d65bc937f952?w=500',
-      'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=500',
-      'https://images.unsplash.com/photo-1552664730-d307ca884978?w=500',
-    ];
-    return fallbackImages[Random().nextInt(fallbackImages.length)];
-  }
+  final VoidCallback onDelete;
+  const _NewJobPostedCard({
+    super.key,
+    required this.notification,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1076,7 +1442,7 @@ class _NewJobPostedCard extends StatelessWidget {
     final jobId = data['jobId'] as String?;
 
     if (jobId == null) {
-      return _GenericInfoCard(notification: notification);
+      return _GenericInfoCard(notification: notification, onDelete: onDelete);
     }
 
     return FutureBuilder<Job?>(
@@ -1090,6 +1456,7 @@ class _NewJobPostedCard extends StatelessWidget {
             context,
             notification,
             isRead,
+            onDelete,
             jobDeleted: true,
           );
         }
@@ -1105,6 +1472,7 @@ class _NewJobPostedCard extends StatelessWidget {
           job,
           isRead,
           effectiveImageUrl,
+          onDelete,
         );
       },
     );
@@ -1116,6 +1484,7 @@ class _NewJobPostedCard extends StatelessWidget {
     Job job,
     bool isRead,
     String jobImageUrl,
+    VoidCallback onDelete,
   ) {
     final theme = Theme.of(context);
     final type = notification['type'] as String? ?? '';
@@ -1136,100 +1505,114 @@ class _NewJobPostedCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
       ),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 20,
-                  backgroundColor: theme.colorScheme.secondaryContainer,
-                  backgroundImage:
-                      (clientImageUrl != null && clientImageUrl.isNotEmpty)
-                      ? CachedNetworkImageProvider(clientImageUrl)
-                      : null,
-                  child: (clientImageUrl == null || clientImageUrl.isEmpty)
-                      ? Icon(
-                          type == 'job_posted_self'
-                              ? Icons.person_outline
-                              : Icons.work_outline,
-                          size: 20,
-                        )
-                      : null,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    type == 'job_posted_self'
-                        ? "You posted a new job"
-                        : "$clientName posted a new job",
-                    style: theme.textTheme.titleSmall,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          SizedBox(
-            height: 140,
-            width: double.infinity,
-            child: CachedNetworkImage(
-              imageUrl: jobImageUrl,
-              fit: BoxFit.cover,
-              placeholder: (c, u) =>
-                  Container(color: theme.colorScheme.surfaceContainerLow),
-              errorWidget: (c, u, e) => Icon(
-                Icons.image_not_supported,
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  job.title,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  job.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                child: Row(
                   children: [
-                    _buildStatChip(
-                      context,
-                      Icons.attach_money,
-                      "${job.budget.toStringAsFixed(0)} Birr",
+                    CircleAvatar(
+                      radius: 20,
+                      backgroundColor: theme.colorScheme.secondaryContainer,
+                      backgroundImage:
+                          (clientImageUrl != null && clientImageUrl.isNotEmpty)
+                          ? CachedNetworkImageProvider(clientImageUrl)
+                          : null,
+                      child: (clientImageUrl == null || clientImageUrl.isEmpty)
+                          ? Icon(
+                              type == 'job_posted_self'
+                                  ? Icons.person_outline
+                                  : Icons.work_outline,
+                              size: 20,
+                            )
+                          : null,
                     ),
-                    Flexible(
-                      child: _buildStatChip(
-                        context,
-                        Icons.location_on_outlined,
-                        job.location.isEmpty ? 'Not specified' : job.location,
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        type == 'job_posted_self'
+                            ? "You posted a new job"
+                            : "$clientName posted a new job",
+                        style: theme.textTheme.titleSmall,
                       ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        // This onTap is handled by the parent GestureDetector
-                      },
-                      child: const Text('View Details'),
                     ),
                   ],
                 ),
-              ],
+              ),
+              SizedBox(
+                height: 140,
+                width: double.infinity,
+                child: CachedNetworkImage(
+                  imageUrl: jobImageUrl,
+                  fit: BoxFit.cover,
+                  placeholder: (c, u) =>
+                      Container(color: theme.colorScheme.surfaceContainerLow),
+                  errorWidget: (c, u, e) => Icon(
+                    Icons.image_not_supported,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      job.title,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      job.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _buildStatChip(
+                          context,
+                          Icons.attach_money,
+                          "${job.budget.toStringAsFixed(0)} Birr",
+                        ),
+                        Flexible(
+                          child: _buildStatChip(
+                            context,
+                            Icons.location_on_outlined,
+                            job.location.isEmpty
+                                ? 'Not specified'
+                                : job.location,
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: () {},
+                          child: const Text('View Details'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Positioned(
+            top: 4,
+            right: 4,
+            child: IconButton(
+              icon: Icon(Icons.close, size: 20, color: Colors.grey.shade600),
+              onPressed: onDelete,
+              splashRadius: 20,
+              tooltip: 'Delete Notification',
             ),
           ),
         ],
@@ -1240,7 +1623,8 @@ class _NewJobPostedCard extends StatelessWidget {
   Widget _buildBasicCard(
     BuildContext context,
     Map<String, dynamic> notification,
-    bool isRead, {
+    bool isRead,
+    VoidCallback onDelete, {
     bool jobDeleted = false,
   }) {
     final theme = Theme.of(context);
@@ -1248,35 +1632,49 @@ class _NewJobPostedCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       elevation: isRead ? 1 : 4,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              notification['title'] ?? 'Notification',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              notification['body'] ?? '',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            if (jobDeleted) ...[
-              const SizedBox(height: 12),
-              Text(
-                'This job may have been deleted.',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.error,
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  notification['title'] ?? 'Notification',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-            ],
-          ],
-        ),
+                const SizedBox(height: 4),
+                Text(
+                  notification['body'] ?? '',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                if (jobDeleted) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'This job may have been deleted.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: IconButton(
+              icon: Icon(Icons.close, size: 20, color: Colors.grey.shade600),
+              onPressed: onDelete,
+              splashRadius: 20,
+              tooltip: 'Delete Notification',
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1327,99 +1725,164 @@ class _NewJobPostedCard extends StatelessWidget {
   }
 }
 
-// =======================================================================
-// === JOB STATUS UPDATE CARD
-// =======================================================================
 class _JobStatusUpdateCard extends StatelessWidget {
   final Map<String, dynamic> notification;
-  const _JobStatusUpdateCard({required this.notification});
+  final VoidCallback onDelete;
+  const _JobStatusUpdateCard({
+    super.key,
+    required this.notification,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     final data = notification['data'] as Map<String, dynamic>? ?? {};
+    final jobId = data['jobId'] as String?;
+
+    if (jobId == null) {
+      return _GenericInfoCard(notification: notification, onDelete: onDelete);
+    }
+
+    return FutureBuilder<Job?>(
+      future: FirebaseService().getJobById(jobId),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _ShimmerStatusCard();
+        }
+
+        final String effectiveImageUrl;
+        final String jobTitle;
+        final String jobStatus;
+
+        if (snapshot.hasData && snapshot.data != null) {
+          final job = snapshot.data!;
+          jobTitle = job.title;
+          jobStatus = job.status;
+          effectiveImageUrl =
+              (job.attachments.isNotEmpty && job.attachments.first.isNotEmpty)
+              ? job.attachments.first
+              : data['jobImageUrl'] as String? ?? _getFallbackImageUrl();
+        } else {
+          jobTitle = data['jobTitle'] as String? ?? 'Job Update';
+          jobStatus = _getStatusFromType(notification['type'] as String? ?? '');
+          effectiveImageUrl =
+              data['jobImageUrl'] as String? ?? _getFallbackImageUrl();
+        }
+
+        return _buildCardContent(
+          context,
+          notification,
+          effectiveImageUrl,
+          jobTitle,
+          jobStatus,
+          onDelete,
+        );
+      },
+    );
+  }
+
+  Widget _buildCardContent(
+    BuildContext context,
+    Map<String, dynamic> notification,
+    String jobImageUrl,
+    String jobTitle,
+    String status,
+    VoidCallback onDelete,
+  ) {
+    final theme = Theme.of(context);
     final isRead = _safeReadBool(notification['isRead']);
-    final jobImageUrl = data['jobImageUrl'] as String?;
-    final status = _getStatusFromType(notification['type'] as String? ?? '');
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: isRead ? 1 : 5,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       clipBehavior: Clip.antiAlias,
-      child: Column(
+      child: Stack(
         children: [
-          SizedBox(
-            height: 120,
-            width: double.infinity,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (jobImageUrl != null && jobImageUrl.isNotEmpty)
-                  CachedNetworkImage(
-                    imageUrl: jobImageUrl,
-                    fit: BoxFit.cover,
-                    placeholder: (c, u) =>
-                        Container(color: theme.colorScheme.surfaceContainer),
-                    errorWidget: (c, u, e) => Container(
-                      color: theme.colorScheme.surfaceContainer,
-                      child: Icon(
-                        Icons.work_outline,
-                        size: 40,
+          Column(
+            children: [
+              SizedBox(
+                height: 120,
+                width: double.infinity,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    CachedNetworkImage(
+                      imageUrl: jobImageUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (c, u) =>
+                          Container(color: theme.colorScheme.surfaceContainer),
+                      errorWidget: (c, u, e) => Container(
+                        color: theme.colorScheme.surfaceContainer,
+                        child: Icon(
+                          Icons.work_outline,
+                          size: 40,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.black.withOpacity(0.6),
+                            Colors.transparent,
+                          ],
+                          begin: Alignment.bottomCenter,
+                          end: Alignment.center,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      bottom: 12,
+                      left: 16,
+                      right: 16,
+                      child: Text(
+                        jobTitle,
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      notification['title'] ?? 'Update',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      notification['body'] ?? '',
+                      style: theme.textTheme.bodyMedium?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
                     ),
-                  ),
-                Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Colors.black.withOpacity(0.6),
-                        Colors.transparent,
-                      ],
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.center,
-                    ),
-                  ),
+                    const SizedBox(height: 20),
+                    _JobProgressTimeline(status: status),
+                  ],
                 ),
-                Positioned(
-                  bottom: 12,
-                  left: 16,
-                  right: 16,
-                  child: Text(
-                    data['jobTitle'] ?? 'Job Update',
-                    style: theme.textTheme.titleLarge?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  notification['title'] ?? 'Update',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  notification['body'] ?? '',
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                _JobProgressTimeline(status: status),
-              ],
+          Positioned(
+            top: 4,
+            right: 4,
+            child: IconButton(
+              icon: Icon(Icons.close, size: 20, color: Colors.grey.shade600),
+              onPressed: onDelete,
+              splashRadius: 20,
+              tooltip: 'Delete Notification',
             ),
           ),
         ],
@@ -1435,12 +1898,14 @@ class _JobStatusUpdateCard extends StatelessWidget {
   }
 }
 
-// =======================================================================
-// === GENERIC INFO CARD
-// =======================================================================
 class _GenericInfoCard extends StatelessWidget {
   final Map<String, dynamic> notification;
-  const _GenericInfoCard({required this.notification});
+  final VoidCallback onDelete;
+  const _GenericInfoCard({
+    super.key,
+    required this.notification,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1459,54 +1924,69 @@ class _GenericInfoCard extends StatelessWidget {
             : BorderSide.none,
         borderRadius: BorderRadius.circular(16),
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              backgroundColor: iconInfo.color.withOpacity(0.15),
-              child: Icon(iconInfo.icon, color: iconInfo.color, size: 24),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    notification['title'] ?? 'Notification',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    notification['body'] ?? '',
-                    style: theme.textTheme.bodyMedium?.copyWith(
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (createdAt != null)
-                    Text(
-                      DateFormat.yMMMd().add_jm().format(createdAt.toLocal()),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: Colors.grey[500],
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(16.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                CircleAvatar(
+                  backgroundColor: iconInfo.color.withOpacity(0.15),
+                  child: Icon(iconInfo.icon, color: iconInfo.color, size: 24),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        notification['title'] ?? 'Notification',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: isRead
+                              ? FontWeight.normal
+                              : FontWeight.bold,
+                        ),
                       ),
-                    ),
-                ],
-              ),
+                      const SizedBox(height: 4),
+                      Text(
+                        notification['body'] ?? '',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (createdAt != null)
+                        Text(
+                          DateFormat.yMMMd().add_jm().format(
+                            createdAt.toLocal(),
+                          ),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: Colors.grey[500],
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: IconButton(
+              icon: Icon(Icons.close, size: 20, color: Colors.grey.shade600),
+              onPressed: onDelete,
+              splashRadius: 20,
+              tooltip: 'Delete Notification',
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
-// =======================================================================
-// === HELPER WIDGETS & FUNCTIONS
-// =======================================================================
 Widget _buildStatChip(BuildContext context, IconData icon, String label) {
   return Row(
     mainAxisSize: MainAxisSize.min,
@@ -1552,6 +2032,8 @@ IconInfo _getIconForType(String type) {
       return IconInfo(icon: Icons.task_alt, color: Colors.purple.shade400);
     case 'job_status_update':
       return IconInfo(icon: Icons.sync_alt, color: Colors.orange.shade700);
+    // UPDATED THIS
+    case 'message_received':
     case 'message':
       return IconInfo(
         icon: Icons.message_outlined,
@@ -1582,9 +2064,11 @@ class _JobProgressTimeline extends StatelessWidget {
         currentIndex = 1;
         break;
       case 'in_progress':
+      case 'started working': // handle this alias
         currentIndex = 2;
         break;
       case 'completed':
+      case 'paycompleted': // handle this alias
         currentIndex = 3;
         break;
       default:
@@ -1687,7 +2171,6 @@ class _TimelinePainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
-// --- SHIMMER PLACEHOLDERS ---
 class _ShimmerList extends StatelessWidget {
   const _ShimmerList();
   @override
@@ -1810,10 +2293,8 @@ class _FilterBarDelegate extends SliverPersistentHeaderDelegate {
 
   @override
   double get maxExtent => 110.0;
-
   @override
   double get minExtent => 110.0;
-
   @override
   bool shouldRebuild(SliverPersistentHeaderDelegate oldDelegate) => true;
 }

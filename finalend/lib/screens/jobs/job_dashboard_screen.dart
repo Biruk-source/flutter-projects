@@ -392,6 +392,21 @@ class _JobDashboardScreenState extends State<JobDashboardScreen>
     );
   }
 
+  // --- ADD THIS HELPER METHOD ---
+  void _navigateToChat(String otherUserId) {
+    if (otherUserId.isEmpty) {
+      _showErrorSnackbar("Cannot start chat: User ID is missing.");
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) =>
+            UnifiedChatScreen(initialSelectedUserId: otherUserId),
+      ),
+    );
+  }
+
   void _navigateToJobDetail(Job job) {
     Navigator.push(
       context,
@@ -425,19 +440,6 @@ class _JobDashboardScreenState extends State<JobDashboardScreen>
         ),
       ),
     ).then((_) => _loadUserData());
-  }
-
-  void _navigateToChat(Job job, String workerID, String currentUsedID) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => ChatScreen(
-          otherUserId: workerID,
-          currentUserId: currentUsedID,
-          jobId: job.id,
-        ),
-      ),
-    );
   }
 
   @override
@@ -1289,6 +1291,49 @@ class _JobDashboardScreenState extends State<JobDashboardScreen>
                     ),
                   ),
                   const SizedBox(width: 12),
+                  if (_isWorker) ...[
+                    // WORKER'S VIEW: Can chat only if the job is assigned or in progress.
+                    if (job.clientId.isNotEmpty &&
+                        ![
+                          'open',
+                          'pending',
+                          'rejected',
+                          'cancelled',
+                        ].contains(job.status.toLowerCase()))
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 12.0),
+                          child: ElevatedButton.icon(
+                            icon: Icon(Icons.chat_bubble_outline, size: 18),
+                            label: Text("Chat Client"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: colorScheme.tertiary,
+                              foregroundColor: colorScheme.onTertiary,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            onPressed: () => _navigateToChat(job.clientId),
+                          ),
+                        ),
+                      ),
+                  ] else ...[
+                    // CLIENT'S VIEW: Can chat if a worker has been assigned.
+                    if (job.workerId != null && job.workerId!.isNotEmpty)
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 12.0),
+                          child: ElevatedButton.icon(
+                            icon: Icon(Icons.chat_bubble_outline, size: 18),
+                            label: Text("Chat Worker"),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: colorScheme.tertiary,
+                              foregroundColor: colorScheme.onTertiary,
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            ),
+                            onPressed: () => _navigateToChat(job.workerId!),
+                          ),
+                        ),
+                      ),
+                  ],
 
                   // THIS IS THE NEW LOGIC:
                   // If the user is a worker and this job has been assigned to them,
@@ -1427,47 +1472,35 @@ class _JobDashboardScreenState extends State<JobDashboardScreen>
                         !job.status.contains('completed') &&
                         job.status != 'cancelled' &&
                         job.status != 'rejected')
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: Icon(
-                            Icons.edit,
-                            size: 18,
-                            color: colorScheme.onPrimary,
-                          ), // Using theme color
-                          label: Text(
-                            appStrings.manageText,
-                          ), // Using AppStrings
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                colorScheme.primary, // Using theme color
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        children: [
+                          IconButton(
+                            icon: Icon(
+                              Icons.edit,
+                              size: 18,
+                              color: ColorScheme.dark().primaryContainer,
+                            ), // Using theme color
+                            onPressed: () => _navigateToJobApplications(job),
                           ),
-                          onPressed: () => _navigateToJobApplications(job),
-                        ),
+                        ],
                       )
                     else if (!_isWorker && // Duplicated logic from original, preserving it
                         job.status.contains('completed') &&
                         job.status != 'cancelled' &&
                         job.status != 'rejected')
-                      Expanded(
-                        child: ElevatedButton.icon(
-                          icon: Icon(
-                            Icons.edit,
-                            size: 18,
-                            color: colorScheme.onPrimary,
-                          ), // Using theme color
-                          label: Text(
-                            appStrings.manageText,
-                          ), // Using AppStrings
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                colorScheme.primary, // Using theme color
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        children: [
+                          IconButton(
+                            icon: Icon(
+                              Icons.edit,
+                              size: 18,
+                              color: ColorScheme.dark().primaryContainer,
+                            ), // Using theme color
+                            onPressed: () => _navigateToJobApplications(job),
                           ),
-                          onPressed: () => _navigateToJobApplications(job),
-                        ),
+                        ],
                       )
                     else
                       const SizedBox.shrink() // Use shrink to take no space
@@ -1937,6 +1970,17 @@ class _JobDashboardScreenState extends State<JobDashboardScreen>
                       applicant.profession,
                       style: textTheme.bodyMedium?.copyWith(
                         color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => _navigateToChat(applicant.id),
+                      icon: Icon(
+                        Icons.chat_bubble_outline,
+                        color: colorScheme.primary,
+                      ),
+                      label: Text(
+                        appStrings.workerDetailChat,
+                        style: TextStyle(color: colorScheme.primary),
                       ),
                     ),
                   ],

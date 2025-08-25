@@ -23,6 +23,8 @@ class FirebaseService {
   StreamSubscription? _notificationSubscription;
   final NotificationService _notificationService = NotificationService();
   bool _isFirstBatch = true;
+  // NEW AND CORRECT METHOD
+
   Future<void> setupNotificationListener() async {
     final user = _auth.currentUser;
     if (user == null) {
@@ -34,14 +36,15 @@ class FirebaseService {
       "--- 🔔 Setting up SYSTEM notification listener for user ${user.uid} ---",
     );
 
-    // Reset the flag and cancel any old listener
     _isFirstBatch = true;
     _notificationSubscription?.cancel();
 
-    final notificationsCollection = _firestore
-        .collection('users')
-        .doc(user.uid)
-        .collection('notifications');
+    // --- THIS IS THE FIX ---
+    // We now use our smart helper to get the correct collection reference
+    // for either a client OR a worker.
+    final notificationsCollection = await _getNotificationCollectionRef(
+      user.uid,
+    );
 
     _notificationSubscription = notificationsCollection
         .orderBy('createdAt', descending: true)
@@ -83,33 +86,44 @@ class FirebaseService {
 
     String? imageUrl;
     String? payload;
-    // The `data` map is where we stored all the rich info.
     final data = notificationData['data'] as Map<String, dynamic>?;
+    final type = notificationData['type'] as String?;
 
     if (data != null) {
-      // The payload is typically the ID of what the notification is about (e.g., a jobId).
-      payload = data['jobId'] as String?;
-      final type = notificationData['type'] as String?;
+      payload = data['jobId'] as String? ?? data['chatRoomId'] as String?;
 
-      // LOGIC TO FIND THE CORRECT IMAGE URL BASED ON NOTIFICATION TYPE
-      if (type == 'job_application') {
-        imageUrl = data['workerImageUrl'] as String?;
-      } else if (type == 'job_accepted') {
-        imageUrl = data['clientImageUrl'] as String?;
-      } else {
-        // This is the one for new jobs!
-        imageUrl = data['jobImageUrl'] as String?;
+      // --- NEW LOGIC TO GET THE RIGHT IMAGE URL ---
+      switch (type) {
+        case 'job_application':
+          imageUrl = data['workerImageUrl'] as String?;
+          break;
+        case 'job_accepted':
+          imageUrl = data['clientImageUrl'] as String?;
+          break;
+        // THIS IS THE NEW CASE FOR MESSAGES
+        case 'message_received':
+          imageUrl = data['senderImageUrl'] as String?;
+          break;
+        default: // For new jobs, etc.
+          imageUrl = data['jobImageUrl'] as String?;
+          break;
       }
     }
 
-    print("--- Triggering notification with image URL: $imageUrl ---");
+    print(
+      "--- Triggering notification of type '$type' with image URL: $imageUrl ---",
+    );
+
+    // --- THIS IS THE KEY CHANGE ---
+    // We check if the notification is a chat message and pass the flag.
+    final bool isChatMessage = (type == 'message_received');
 
     _notificationService.showRichNotification(
       title: title,
       body: body,
       imageUrl: imageUrl,
-      // FIX #3: Provide a default empty string if payload is null to prevent errors.
       payload: payload ?? "default_payload",
+      isChatMessage: isChatMessage, // Pass the new flag here
     );
   }
 
@@ -181,6 +195,25 @@ class FirebaseService {
     } catch (e) {
       print('Error getting active work for worker: $e');
       return [];
+    }
+  }
+
+  Stream<DocumentSnapshot> streamUserPresence(String userId) {
+    return _firestore.collection('presence').doc(userId).snapshots();
+  }
+
+  Future<void> updateUserPresence(String status) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    try {
+      await _firestore.collection('presence').doc(user.uid).set({
+        'status': status,
+        'last_seen': FieldValue.serverTimestamp(),
+      });
+      print("User presence updated to: $status");
+    } catch (e) {
+      print("Error updating user presence: $e");
     }
   }
 
@@ -448,6 +481,7 @@ class FirebaseService {
     }
   }
 
+  // GOOD 👍
   Future<Worker?> getWorker(String userId) async {
     try {
       final doc = await _firestore
@@ -455,7 +489,9 @@ class FirebaseService {
           .doc(userId)
           .get();
       if (doc.exists) {
-        return Worker.fromJson(doc.data() as Map<String, dynamic>);
+        final data = doc.data() as Map<String, dynamic>;
+        data['id'] = doc.id; // <-- FIX IS HERE
+        return Worker.fromJson(data);
       }
       return null;
     } catch (e) {
@@ -627,7 +663,6 @@ class FirebaseService {
       print(
         '    2. You have a Storage Policy that allows INSERT for authenticated users.',
       );
-      return null;
     } catch (e) {
       print('An unknown error occurred during Supabase upload: $e');
       return null;
@@ -1074,18 +1109,41 @@ class FirebaseService {
   // User related methods
   Future<AppUser?> getUser(String userId) async {
     try {
-      DocumentSnapshot doc = await _firestore
+      // First, check if the user is a client in the 'users' collection
+      DocumentSnapshot userDoc = await _firestore
           .collection('users')
           .doc(userId)
           .get();
-      if (doc.exists) {
-        Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
-        data['id'] = doc.id;
+
+      if (userDoc.exists) {
+        print("✅ Found user '$userId' in the 'users' (client) collection.");
+        Map<String, dynamic> data = userDoc.data() as Map<String, dynamic>;
+        data['id'] = userDoc.id;
         return AppUser.fromJson(data);
       }
+
+      // If not found, check if the user is a worker in the 'professionals' collection
+      DocumentSnapshot workerDoc = await _firestore
+          .collection('professionals')
+          .doc(userId)
+          .get();
+
+      if (workerDoc.exists) {
+        print(
+          "✅ Found user '$userId' in the 'professionals' (worker) collection.",
+        );
+        Map<String, dynamic> data = workerDoc.data() as Map<String, dynamic>;
+        data['id'] = workerDoc.id;
+        return AppUser.fromJson(data);
+      }
+
+      // If the user is not found in either collection
+      print(
+        "⚠️ User '$userId' not found in 'users' or 'professionals' collections.",
+      );
       return null;
     } catch (e) {
-      print('Error fetching user: $e');
+      print('🔥 Error fetching user profile for ID $userId: $e');
       return null;
     }
   }

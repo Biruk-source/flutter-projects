@@ -5,6 +5,7 @@
 list(APPEND FLUTTER_PLUGIN_LIST
   animated_rating_stars
   app_links
+  audioplayers_windows
   cloud_firestore
   connectivity_plus
   file_selector_windows
