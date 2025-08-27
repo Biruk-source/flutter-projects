@@ -9,6 +9,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../home_screen.dart';
+import '../../services/app_string.dart'; // <-- IMPORT APPSTRINGS
 import '../../services/firebase_service.dart';
 import 'conversation_pane.dart'; // We need the AI_USER_ID from conversation_pane
 
@@ -47,19 +48,18 @@ class _ChatListPaneState extends State<ChatListPane> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final appStrings = AppLocalizations.of(context)!;
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     return Scaffold(
       appBar: AppBar(
-        // Use a simple, clean title. The search bar is more prominent.
-        title: const Text("Messages"),
+        title: Text(appStrings.chatListAppBarTitle),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, size: 24, color: Colors.white),
           onPressed: () => Navigator.of(context).pushReplacement(
             MaterialPageRoute(builder: (context) => const HomeScreen()),
           ),
         ),
-        // The search and filter toggles are now in the AppBar body for a modern look.
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(110.0),
           child: Column(
@@ -72,6 +72,7 @@ class _ChatListPaneState extends State<ChatListPane> {
   }
 
   Widget _buildSearchBar(ThemeData theme) {
+    final appStrings = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
       child: TextField(
@@ -82,7 +83,7 @@ class _ChatListPaneState extends State<ChatListPane> {
           });
         },
         decoration: InputDecoration(
-          hintText: 'Search chats...',
+          hintText: appStrings.chatListSearchHint,
           prefixIcon: const Icon(Icons.search_outlined, size: 20),
           filled: true,
           fillColor: theme.colorScheme.surfaceContainer,
@@ -108,6 +109,7 @@ class _ChatListPaneState extends State<ChatListPane> {
   }
 
   Widget _buildFilterToggle(ThemeData theme) {
+    final appStrings = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.only(left: 16, right: 16, bottom: 12),
       child: Container(
@@ -135,14 +137,14 @@ class _ChatListPaneState extends State<ChatListPane> {
             minHeight: 36.0,
             minWidth: (MediaQuery.of(context).size.width - 40) / 2,
           ),
-          children: const [
+          children: [
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: Text('All Chats'),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Text(appStrings.chatListFilterAll),
             ),
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16.0),
-              child: Text('Unread'),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Text(appStrings.chatListFilterUnread),
             ),
           ],
         ),
@@ -151,8 +153,9 @@ class _ChatListPaneState extends State<ChatListPane> {
   }
 
   Widget _buildChatList() {
+    final appStrings = AppLocalizations.of(context)!;
     if (_currentUserId == null) {
-      return const Center(child: Text("Please log in."));
+      return Center(child: Text(appStrings.chatListPleaseLogin));
     }
 
     return StreamBuilder<QuerySnapshot>(
@@ -168,22 +171,25 @@ class _ChatListPaneState extends State<ChatListPane> {
 
         List<Map<String, dynamic>> userChats =
             snapshot.data?.docs.map((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              data['id'] = doc.id;
-              return data;
-            }).toList() ??
-            [];
+                  final data = doc.data() as Map<String, dynamic>;
+                  data['id'] = doc.id;
+                  return data;
+                }).toList() ??
+                [];
 
         final aiChatData = {
           'id': AI_USER_ID,
           'isAiChat': true,
-          'lastMessage': 'Your personal AI assistant...',
+          'lastMessage': appStrings.chatListAiSubtitle,
           'lastMessageTimestamp': Timestamp.fromDate(
             DateTime.now().add(const Duration(days: 365)),
           ),
           'participants': [_currentUserId, AI_USER_ID],
           'participantDetails': {
-            AI_USER_ID: {'name': 'Min Atu', 'profileImage': null},
+            AI_USER_ID: {
+              'name': appStrings.chatListAiName,
+              'profileImage': null
+            },
           },
         };
 
@@ -196,32 +202,32 @@ class _ChatListPaneState extends State<ChatListPane> {
           );
           final otherUserName =
               participantsDetails[otherUserId]?['name'] as String? ??
-              'Chat User';
+                  appStrings.chatListDefaultUserName;
 
-          final matchesSearch = otherUserName.toLowerCase().contains(
-            _searchQuery,
-          );
+          final matchesSearch =
+              otherUserName.toLowerCase().contains(_searchQuery);
           if (!matchesSearch) return false;
 
           if (_currentFilter == ChatFilter.unread) {
             final lastSenderId = chatData['lastMessageSenderId'] as String?;
-            return lastSenderId != null &&
-                lastSenderId != _currentUserId; // Simplified unread logic
+            return lastSenderId != null && lastSenderId != _currentUserId;
           }
 
           return true;
         }).toList();
 
         List<Map<String, dynamic>> finalList = [];
-        if ('Min Atu'.toLowerCase().contains(_searchQuery) &&
+        if (appStrings.chatListAiName
+                .toLowerCase()
+                .contains(_searchQuery) &&
             _currentFilter != ChatFilter.unread) {
           finalList.add(aiChatData);
         }
         finalList.addAll(filteredChats);
 
         if (finalList.isEmpty) {
-          return const Center(
-            child: Text('No conversations match your criteria.'),
+          return Center(
+            child: Text(appStrings.chatListEmptyFiltered),
           );
         }
 
@@ -284,6 +290,7 @@ class _ChatListItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final appStrings = AppLocalizations.of(context)!;
     final participants = List<String>.from(chatData['participants'] ?? []);
     final otherUserId = participants.firstWhere(
       (id) => id != currentUserId,
@@ -299,7 +306,8 @@ class _ChatListItem extends StatelessWidget {
     final otherUserData =
         participantDetails[otherUserId] as Map<String, dynamic>? ?? {};
 
-    final String name = otherUserData['name'] ?? 'Chat User';
+    final String name =
+        otherUserData['name'] ?? appStrings.chatListDefaultUserName;
     final String? profileImage = otherUserData['profileImage'];
     final bool hasImage = profileImage != null && profileImage.isNotEmpty;
 
@@ -308,9 +316,7 @@ class _ChatListItem extends StatelessWidget {
     final lastSenderId = chatData['lastMessageSenderId'] as String?;
 
     final bool isUnread =
-        !isAiChat &&
-        lastSenderId != null &&
-        lastSenderId != currentUserId; // Simplified
+        !isAiChat && lastSenderId != null && lastSenderId != currentUserId;
 
     return Material(
       color: isSelected ? const Color(0xFF4A442D) : Colors.transparent,
@@ -338,6 +344,7 @@ class _ChatListItem extends StatelessWidget {
                     _buildName(theme, name, isAiChat),
                     const SizedBox(height: 4),
                     _buildLastMessage(
+                      context, // Pass context for appStrings
                       theme,
                       lastMessage,
                       lastSenderId,
@@ -354,15 +361,14 @@ class _ChatListItem extends StatelessWidget {
                 children: [
                   if (timestamp != null)
                     Text(
-                      _formatTimestamp(timestamp.toDate()),
+                      _formatTimestamp(timestamp.toDate(), appStrings),
                       style: TextStyle(
                         fontSize: 12,
                         color: isUnread
                             ? const Color(0xFFD4B74F)
                             : theme.colorScheme.onSurfaceVariant,
-                        fontWeight: isUnread
-                            ? FontWeight.bold
-                            : FontWeight.normal,
+                        fontWeight:
+                            isUnread ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
                   const SizedBox(height: 8),
@@ -445,12 +451,10 @@ class _ChatListItem extends StatelessWidget {
       children: [
         CircleAvatar(
           radius: 28,
-          backgroundImage: hasImage
-              ? CachedNetworkImageProvider(profileImage!)
-              : null,
-          backgroundColor: hasImage
-              ? Colors.transparent
-              : const Color(0xFF4A442D), // Gold color for placeholder
+          backgroundImage:
+              hasImage ? CachedNetworkImageProvider(profileImage!) : null,
+          backgroundColor:
+              hasImage ? Colors.transparent : const Color(0xFF4A442D),
           child: !hasImage
               ? Text(
                   name.isNotEmpty ? name[0].toUpperCase() : '?',
@@ -494,12 +498,14 @@ class _ChatListItem extends StatelessWidget {
   }
 
   Widget _buildLastMessage(
+    BuildContext context, // <-- Pass context
     ThemeData theme,
     String lastMessage,
     String? lastSenderId,
     bool isUnread,
     String otherUserId,
   ) {
+    final appStrings = AppLocalizations.of(context)!; // <-- Get appStrings
     return StreamBuilder<DocumentSnapshot>(
       stream: FirebaseFirestore.instance
           .collection('chats')
@@ -511,7 +517,7 @@ class _ChatListItem extends StatelessWidget {
           final typing = data['typing'] as Map<String, dynamic>?;
           if (typing?[otherUserId] == true) {
             return Text(
-              "typing...",
+              appStrings.chatListTyping,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -525,18 +531,20 @@ class _ChatListItem extends StatelessWidget {
         final bool amSender = lastSenderId == currentUserId;
         Widget prefixWidget = amSender
             ? Text(
-                "You: ",
+                appStrings.chatListYouPrefix,
                 style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
               )
             : const SizedBox.shrink();
 
         String displayMessage = lastMessage;
         IconData? prefixIcon;
+        // NOTE: The data in Firestore is still English. This is correct.
+        // We check the English string from the DB and display the localized version.
         if (lastMessage == '📷 Photo') {
-          displayMessage = 'Photo';
+          displayMessage = appStrings.chatListLastMsgPhoto;
           prefixIcon = Icons.photo_camera_outlined;
         } else if (lastMessage == '🎤 Voice Message') {
-          displayMessage = 'Voice message';
+          displayMessage = appStrings.chatListLastMsgVoice;
           prefixIcon = Icons.mic_none_outlined;
         }
 
@@ -569,7 +577,7 @@ class _ChatListItem extends StatelessWidget {
     );
   }
 
-  String _formatTimestamp(DateTime date) {
+  String _formatTimestamp(DateTime date, AppStrings appStrings) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
     final yesterday = today.subtract(const Duration(days: 1));
@@ -578,7 +586,7 @@ class _ChatListItem extends StatelessWidget {
     if (messageDay == today) {
       return DateFormat.jm().format(date);
     } else if (messageDay == yesterday) {
-      return "Yesterday";
+      return appStrings.chatListTimestampYesterday;
     } else {
       return DateFormat('dd/MM/yy').format(date);
     }
@@ -644,6 +652,7 @@ class _EmptyChatPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appStrings = AppLocalizations.of(context)!;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 60.0, horizontal: 24.0),
       child: Center(
@@ -653,7 +662,7 @@ class _EmptyChatPlaceholder extends StatelessWidget {
             Icon(Icons.message_outlined, size: 60, color: Colors.grey.shade400),
             const SizedBox(height: 16),
             Text(
-              'No User Chats Yet',
+              appStrings.chatListEmptyTitle,
               textAlign: TextAlign.center,
               style: Theme.of(
                 context,
@@ -661,7 +670,7 @@ class _EmptyChatPlaceholder extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Start a new conversation by contacting a worker from their profile page.',
+              appStrings.chatListEmptySubtitle,
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade600),
             ),

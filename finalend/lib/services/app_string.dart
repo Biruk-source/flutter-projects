@@ -794,7 +794,23 @@ abstract class AppStrings {
   String get notifEmptyStateSubtitle;
   String get notifEmptyStateFilteredTitle;
   String get notifEmptyStateFilteredSubtitle;
-
+  // --- Chat List Pane ---
+  String get chatListAppBarTitle;
+  String get chatListSearchHint;
+  String get chatListFilterAll;
+  String get chatListFilterUnread;
+  String get chatListPleaseLogin;
+  String get chatListEmptyFiltered;
+  String get chatListEmptyTitle;
+  String get chatListEmptySubtitle;
+  String get chatListAiName;
+  String get chatListAiSubtitle;
+  String get chatListDefaultUserName;
+  String get chatListYouPrefix;
+  String get chatListTyping;
+  String get chatListLastMsgPhoto;
+  String get chatListLastMsgVoice;
+  String get chatListTimestampYesterday;
   // --- Notification Cards (General & Specific) ---
   String get notifInAppDefaultTitle;
   String get notifMsgChatError;
@@ -818,6 +834,61 @@ abstract class AppStrings {
   String get notifActionChatWorker;
   String get notifActionChatClient;
   String get timelineAssigned;
+  // --- Conversation Pane & Messages ---
+  String get convoDateToday;
+  String get convoDateYesterday;
+  String get convoAiWelcome;
+  String get convoAiErrorInit;
+  String get convoAiStillInitializing;
+  String get convoAiAppBarTitle;
+  String get convoAppBarLoading;
+  String get convoUserStatusOnline;
+  String get convoUserStatusOffline;
+  String convoUserStatusLastSeen(String time);
+  String convoNewMessageNotifTitle(String name);
+  String get convoNewMessageNotifTitleDefault;
+  String get convoLastMsgAttachment;
+  String get convoLastMsgJobProposal;
+  String get convoErrorFileUpload;
+  String get convoMsgDeletedForMe;
+  String get convoErrorDeleteForEveryoneTimeLimit;
+  String get convoMsgDeletedForEveryone;
+  String get convoErrorChatAlreadyEmpty;
+  String get convoMsgChatCleared;
+  String get convoErrorClearChat;
+  String get convoMenuViewProfile;
+  String get convoMenuClearChat;
+  String get convoErrorProfileIdMissing;
+  String get convoErrorProfileLoad;
+  String get convoErrorGeneric;
+  String get convoErrorPhoneNotAvailable;
+  String convoErrorPhoneLaunch(String number);
+  String get convoEmptyHumanChat;
+  String convoTypingIndicator(String name);
+  String get convoTypingIndicatorDefault;
+  String get convoAiErrorThinking;
+  String get convoActionReply;
+  String get convoActionCopy;
+  String get convoMsgCopied;
+  String get convoActionDeleteForMe;
+  String get convoActionDeleteForEveryone;
+  String get convoJobProposalInvalid;
+  String get convoJobProposalTitle;
+  String convoJobProposalBudget(String budget);
+  String get convoReplyToYou;
+  String convoReplyingTo(String name);
+  String convoPermissionRequired(String permissionName);
+  String get convoPermissionSettings;
+  String get convoErrorRecorderInit;
+  String get convoRecording;
+  String get convoMessageHint;
+  String get convoAttachGallery;
+  String get convoAttachCamera;
+  String get convoAttachDocument;
+  String get convoAttachJob;
+  String get convoAudioPlaybackError;
+
+
 }
 
 // ===========================================================
@@ -2187,7 +2258,40 @@ class AppStringsEn implements AppStrings {
   String get notifSortDateAsc => "Oldest First";
   @override
   String get notifSortPriority => "By Priority";
-
+  // --- Chat List Pane ---
+  @override
+  String get chatListAppBarTitle => "Messages";
+  @override
+  String get chatListSearchHint => "Search chats...";
+  @override
+  String get chatListFilterAll => "All Chats";
+  @override
+  String get chatListFilterUnread => "Unread";
+  @override
+  String get chatListPleaseLogin => "Please log in.";
+  @override
+  String get chatListEmptyFiltered => "No conversations match your criteria.";
+  @override
+  String get chatListEmptyTitle => "No User Chats Yet";
+  @override
+  String get chatListEmptySubtitle =>
+      "Start a new conversation by contacting a worker from their profile page.";
+  @override
+  String get chatListAiName => "Min Atu"; // AI Assistant Name
+  @override
+  String get chatListAiSubtitle => "Your personal AI assistant...";
+  @override
+  String get chatListDefaultUserName => "Chat User";
+  @override
+  String get chatListYouPrefix => "You: ";
+  @override
+  String get chatListTyping => "typing...";
+  @override
+  String get chatListLastMsgPhoto => "Photo";
+  @override
+  String get chatListLastMsgVoice => "Voice message";
+  @override
+  String get chatListTimestampYesterday => "Yesterday";
   // --- Multi-Select & Batch Actions ---
   @override
   String get notifTooltipMarkRead => "Mark as Read";
@@ -2619,6 +2723,119 @@ class AppStringsEn implements AppStrings {
   @override
   String get postAJobButton => "Post a Job";
   @override
+  // --- Conversation Pane & Messages ---
+  @override
+  String get convoDateToday => "Today";
+  @override
+  String get convoDateYesterday => "Yesterday";
+  @override
+  String get convoAiWelcome =>
+      "Selam! I'm Min Atu, your personal AI assistant. How can I help you today? 😊";
+  @override
+  String get convoAiErrorInit =>
+      "Sorry, I'm having trouble connecting right now. Please try again later.";
+  @override
+  String get convoAiStillInitializing => "AI is still initializing...";
+  @override
+  String get convoAiAppBarTitle => "Min Atu Assistant";
+  @override
+  String get convoAppBarLoading => "Loading...";
+  @override
+  String get convoUserStatusOnline => "Online";
+  @override
+  String get convoUserStatusOffline => "Offline";
+  @override
+  String convoUserStatusLastSeen(String time) => "Last seen $time";
+  @override
+  String convoNewMessageNotifTitle(String name) => "New message from $name";
+  @override
+  String get convoNewMessageNotifTitleDefault => "New Message";
+  @override
+  String get convoLastMsgAttachment => "📎 Attachment";
+  @override
+  String get convoLastMsgJobProposal => "💼 Job Proposal";
+  @override
+  String get convoErrorFileUpload => "File upload failed.";
+  @override
+  String get convoMsgDeletedForMe => "Message hidden for you.";
+  @override
+  String get convoErrorDeleteForEveryoneTimeLimit =>
+      "Too late to delete for everyone.";
+  @override
+  String get convoMsgDeletedForEveryone => "Message deleted for everyone.";
+  @override
+  String get convoErrorChatAlreadyEmpty => "Chat is already empty.";
+  @override
+  String get convoMsgChatCleared => "Chat history cleared.";
+  @override
+  String get convoErrorClearChat => "Failed to clear chat history.";
+  @override
+  String get convoMenuViewProfile => "View Profile";
+  @override
+  String get convoMenuClearChat => "Clear Chat";
+  @override
+  String get convoErrorProfileIdMissing =>
+      "Could not open profile: User ID is missing.";
+  @override
+  String get convoErrorProfileLoad => "Could not load worker profile.";
+  @override
+  String get convoErrorGeneric => "An error occurred.";
+  @override
+  String get convoErrorPhoneNotAvailable =>
+      "User's phone number is not available.";
+  @override
+  String convoErrorPhoneLaunch(String number) =>
+      "Could not make the phone call to $number.";
+  @override
+  String get convoEmptyHumanChat => "Start the conversation!";
+  @override
+  String convoTypingIndicator(String name) => "$name is typing...";
+  @override
+  String get convoTypingIndicatorDefault => "Someone";
+  @override
+  String get convoAiErrorThinking =>
+      "Sorry, an error occurred while I was thinking.";
+  @override
+  String get convoActionReply => "Reply";
+  @override
+  String get convoActionCopy => "Copy";
+  @override
+  String get convoMsgCopied => "Copied to clipboard!";
+  @override
+  String get convoActionDeleteForMe => "Delete for Me";
+  @override
+  String get convoActionDeleteForEveryone => "Delete for Everyone";
+  @override
+  String get convoJobProposalInvalid => "Invalid Job Proposal";
+  @override
+  String get convoJobProposalTitle => "Job Proposal";
+  @override
+  String convoJobProposalBudget(String budget) => "Budget: ETB $budget";
+  @override
+  String get convoReplyToYou => "You";
+  @override
+  String convoReplyingTo(String name) => "Replying to $name";
+  @override
+  String convoPermissionRequired(String permissionName) =>
+      "Permission for $permissionName is required.";
+  @override
+  String get convoPermissionSettings => "SETTINGS";
+  @override
+  String get convoErrorRecorderInit => "Recorder could not be initialized.";
+  @override
+  String get convoRecording => "Recording...";
+  @override
+  String get convoMessageHint => "Message...";
+  @override
+  String get convoAttachGallery => "Gallery";
+  @override
+  String get convoAttachCamera => "Camera";
+  @override
+  String get convoAttachDocument => "Document";
+  @override
+  String get convoAttachJob => "Job";
+  @override
+  String get convoAudioPlaybackError => "Can't play audio";
   String jobApplicationsScreenTitle(String jobTitle) =>
       "Applicants for: $jobTitle";
 }
@@ -2941,6 +3158,17 @@ class AppStringsAm implements AppStrings {
   String get jobStatusUnknown => "ያልታወቀ";
   @override
   String get jobDateN_A => "ቀን የለም";
+  @override
+  String get chatListAppBarTitle => "ቻት"; // Chats
+
+  @override
+  String get chatListFilterAll => "ሁሉም"; // All
+
+  @override
+  String get chatListFilterUnread => "ያልተነበቡ"; // Unread
+
+  @override
+  String get chatListSearchHint => "ቻት ፈልግ"; // Search chat
   @override
   String get generalN_A => "የለም";
   @override
@@ -4310,7 +4538,30 @@ class AppStringsAm implements AppStrings {
   @override
   String get notifEmptyStateFilteredSubtitle =>
       "ተጨማሪ ማሳወቂያዎችን ለማየት ማጣሪያዎችዎን ለማስተካከል ይሞክሩ።";
-
+  @override
+  String get chatListPleaseLogin => "እባክዎ ይግቡ።";
+  @override
+  String get chatListEmptyFiltered => "ከፍለጋዎ ጋር የሚዛመድ ውይይት የለም።";
+  @override
+  String get chatListEmptyTitle => "እስካሁን ምንም የተጠቃሚ ውይይት የለም";
+  @override
+  String get chatListEmptySubtitle => "ከባለሙያ ገጽ ላይ ባለሙያን በማነጋገር አዲስ ውይይት ይጀምሩ።";
+  @override
+  String get chatListAiName => "ምን አዲስ"; // AI Assistant Name
+  @override
+  String get chatListAiSubtitle => "የእርስዎ የግል AI ረዳት...";
+  @override
+  String get chatListDefaultUserName => "ተወያይ";
+  @override
+  String get chatListYouPrefix => "እርስዎ: ";
+  @override
+  String get chatListTyping => "እየጻፈ ነው...";
+  @override
+  String get chatListLastMsgPhoto => "ፎቶ";
+  @override
+  String get chatListLastMsgVoice => "የድምጽ መልዕክት";
+  @override
+  String get chatListTimestampYesterday => "ትላንት";
   // --- Notification Cards (General & Specific) ---
   @override
   String get notifInAppDefaultTitle => "አዲስ ማሳወቂያ";
@@ -4356,6 +4607,115 @@ class AppStringsAm implements AppStrings {
   String get notifActionChatWorker => "ከባለሙያው ጋር ይወያዩ";
   @override
   String get notifActionChatClient => "ከደንበኛው ጋር ይወያዩ";
+  // --- Conversation Pane & Messages ---
+  @override
+  String get convoDateToday => "ዛሬ";
+  @override
+  String get convoDateYesterday => "ትላንት";
+  @override
+  String get convoAiWelcome =>
+      "ሰላም! እኔ ምን አዲስ ነኝ፣ የእርስዎ የግል AI ረዳት። ዛሬ እንዴት ልረዳዎት እችላለሁ? 😊";
+  @override
+  String get convoAiErrorInit =>
+      "ይቅርታ፣ አሁን ለመገናኘት ችግር አጋጥሞኛል። እባክዎ ቆይተው እንደገና ይሞክሩ።";
+  @override
+  String get convoAiStillInitializing => "AI አሁንም በመጀመር ላይ ነው።...";
+  @override
+  String get convoAiAppBarTitle => "ምን አዲስ ረዳት";
+  @override
+  String get convoAppBarLoading => "በመጫን ላይ...";
+  @override
+  String get convoUserStatusOnline => "በመስመር ላይ";
+  @override
+  String get convoUserStatusOffline => "ከመስመር ውጭ";
+  @override
+  String convoUserStatusLastSeen(String time) => "መጨረሻ የታየው $time";
+  @override
+  String convoNewMessageNotifTitle(String name) => "ከ $name አዲስ መልዕክት";
+  @override
+  String get convoNewMessageNotifTitleDefault => "አዲስ መልዕክት";
+  @override
+  String get convoLastMsgAttachment => "📎 አባሪ";
+  @override
+  String get convoLastMsgJobProposal => "💼 የሥራ ሀሳብ";
+  @override
+  String get convoErrorFileUpload => "ፋይል መስቀል አልተሳካም።";
+  @override
+  String get convoMsgDeletedForMe => "መልዕክቱ ለእርስዎ ተደብቋል።";
+  @override
+  String get convoErrorDeleteForEveryoneTimeLimit => "ለሁሉም ለማጥፋት ጊዜው አልፏል።";
+  @override
+  String get convoMsgDeletedForEveryone => "መልዕክቱ ለሁሉም ተሰርዟል።";
+  @override
+  String get convoErrorChatAlreadyEmpty => "ውይይቱ አስቀድሞ ባዶ ነው።";
+  @override
+  String get convoMsgChatCleared => "የውይይት ታሪክ ጸድቷል።";
+  @override
+  String get convoErrorClearChat => "የውይይት ታሪክን ማጽዳት አልተቻለም።";
+  @override
+  String get convoMenuViewProfile => "መገለጫ ይመልከቱ";
+  @override
+  String get convoMenuClearChat => "ውይይቱን አጽዳ";
+  @override
+  String get convoErrorProfileIdMissing =>
+      "መገለጫ መክፈት አልተቻለም፡ የተጠቃሚ መታወቂያ ጠፍቷል።";
+  @override
+  String get convoErrorProfileLoad => "የባለሙያ መገለጫ መጫን አልተቻለም።";
+  @override
+  String get convoErrorGeneric => "ስህተት አጋጥሟል።";
+  @override
+  String get convoErrorPhoneNotAvailable => "የተጠቃሚው ስልክ ቁጥር የለም።";
+  @override
+  String convoErrorPhoneLaunch(String number) => "ወደ $number ስልክ መደወል አልተቻለም።";
+  @override
+  String get convoEmptyHumanChat => "ውይይቱን ይጀምሩ!";
+  @override
+  String convoTypingIndicator(String name) => "$name እየጻፈ ነው...";
+  @override
+  String get convoTypingIndicatorDefault => "አንድ ሰው";
+  @override
+  String get convoAiErrorThinking => "ይቅርታ፣ በማስብበት ጊዜ ስህተት አጋጥሟል።";
+  @override
+  String get convoActionReply => "ምላሽ ስጥ";
+  @override
+  String get convoActionCopy => "ቅዳ";
+  @override
+  String get convoMsgCopied => "ወደ ቅንጥብ ሰሌዳ ተቀድቷል!";
+  @override
+  String get convoActionDeleteForMe => "ለእኔ አጥፋ";
+  @override
+  String get convoActionDeleteForEveryone => "ለሁሉም አጥፋ";
+  @override
+  String get convoJobProposalInvalid => "ትክክል ያልሆነ የሥራ ሀሳብ";
+  @override
+  String get convoJobProposalTitle => "የሥራ ሀሳብ";
+  @override
+  String convoJobProposalBudget(String budget) => "በጀት: ብር $budget";
+  @override
+  String get convoReplyToYou => "እርስዎ";
+  @override
+  String convoReplyingTo(String name) => "ለ $name ምላሽ በመስጠት ላይ";
+  @override
+  String convoPermissionRequired(String permissionName) =>
+      "የ$permissionName ፍቃድ ያስፈልጋል።";
+  @override
+  String get convoPermissionSettings => "ቅንብሮች";
+  @override
+  String get convoErrorRecorderInit => "መቅጃውን ማስጀመር አልተቻለም።";
+  @override
+  String get convoRecording => "በመቅዳት ላይ...";
+  @override
+  String get convoMessageHint => "መልዕክት...";
+  @override
+  String get convoAttachGallery => "ፎቶዎች";
+  @override
+  String get convoAttachCamera => "ካሜራ";
+  @override
+  String get convoAttachDocument => "ሰነድ";
+  @override
+  String get convoAttachJob => "ሥራ";
+  @override
+  String get convoAudioPlaybackError => "ኦዲዮ ማጫወት አልተቻለም";
 }
 
 // ===========================================================
