@@ -99,7 +99,6 @@ class _SectionContainer extends StatelessWidget {
 class _SkillPill extends StatelessWidget {
   final String skill;
   const _SkillPill({required this.skill});
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -2117,7 +2116,7 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen>
 
     // Safe data access for worker properties
     final workerName = widget.worker.name;
-    final workerProfession = widget.worker.profession;
+   
     final workerAbout = widget.worker.about;
     final workerSkills = widget.worker.skills;
     final workerExperience = widget.worker.experience;
@@ -2128,6 +2127,9 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen>
 
     return Scaffold(
       backgroundColor: cs.background,
+      floatingActionButtonLocation: FloatingActionButtonLocation.endTop,
+      floatingActionButtonAnimator: FloatingActionButtonAnimator.scaling,
+     
       floatingActionButton:
           FloatingActionButton.extended(
             onPressed: () {
@@ -2143,6 +2145,7 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen>
                 ),
               );
             },
+            
             label: Text(
               appStrings
                   .workerDetailChat, // Assuming you have a string for "Chat"
@@ -2153,9 +2156,9 @@ class _WorkerDetailScreenState extends State<WorkerDetailScreen>
             ),
             icon: Icon(Icons.chat_bubble_outline_rounded, color: cs.onPrimary),
             backgroundColor: cs.primary,
-            elevation: 4.0,
-          ).animate().slideY(
-            begin: 2, // Start off-screen at the bottom
+            elevation: 8.0,
+          ).animate().slideX(
+            begin: 1, // Start off-screen at the bottom
             duration: 500.milliseconds,
             delay: 800.milliseconds, // Wait for other animations to start
             curve: Curves.easeOutCubic,

@@ -1676,12 +1676,15 @@ class _IntroVideoManager extends StatelessWidget {
         videoFile != null || (videoUrl != null && videoUrl!.isNotEmpty);
 
     if (!hasVideo) {
+      // NEW, CORRECTED CODE
       return DottedBorder(
-        color: theme.colorScheme.primary,
-        strokeWidth: 2,
-        dashPattern: const [8, 8],
-        borderType: BorderType.RRect,
-        radius: const Radius.circular(16),
+        options: RoundedRectDottedBorderOptions(
+          color: theme.colorScheme.primary,
+          strokeWidth: 2,
+          dashPattern: const [8, 8],
+          radius: const Radius.circular(16),
+          padding: EdgeInsets.zero, // Important to keep child alignment
+        ),
         child: AspectRatio(
           aspectRatio: 9 / 16,
           child: InkWell(
@@ -1698,7 +1701,8 @@ class _IntroVideoManager extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    appStrings.professionalSetupVideoEmptyButton,
+                    appStrings
+                        .professionalSetupVideoEmptyButton, // Your string variable
                     style: theme.textTheme.labelLarge?.copyWith(
                       color: theme.colorScheme.primary,
                     ),
@@ -1824,12 +1828,16 @@ class _MediaGridUploader extends StatelessWidget {
             SizedBox(
               width: itemWidth,
               height: itemWidth,
+              // NEW CODE - FIXED
+              // NEW, CORRECTED CODE
               child: DottedBorder(
-                color: Theme.of(context).colorScheme.primary,
-                strokeWidth: 1.5,
-                dashPattern: const [6, 6],
-                borderType: BorderType.RRect,
-                radius: const Radius.circular(12),
+                options: RoundedRectDottedBorderOptions(
+                  color: Theme.of(context).colorScheme.primary,
+                  strokeWidth: 1.5,
+                  dashPattern: const [6, 6],
+                  radius: const Radius.circular(12),
+                  padding: EdgeInsets.zero, // Important to keep child alignment
+                ),
                 child: InkWell(
                   onTap: onAdd,
                   borderRadius: BorderRadius.circular(11),
@@ -1843,7 +1851,8 @@ class _MediaGridUploader extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          appStrings.professionalSetupImageEmptyButton,
+                          appStrings
+                              .professionalSetupImageEmptyButton, // Your string variable
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.labelMedium
                               ?.copyWith(

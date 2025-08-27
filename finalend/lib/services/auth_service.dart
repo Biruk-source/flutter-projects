@@ -3,12 +3,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/user.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'firebase_service.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
-  final GoogleSignIn _googleSignIn = GoogleSignIn();
+  final GoogleSignIn _googleSignIn = GoogleSignIn.instance;
   final FirebaseService _firebaseService = FirebaseService();
   // -----------------------
 
@@ -55,40 +55,39 @@ class AuthService {
   Future<bool> signInSilentlyWithGoogle() async {
     try {
       print("Attempting Google Silent Sign In...");
+
+      // =========================================================================
+      // ========== FIX #3: Use the new `attemptLightweightAuthentication` ==========
+      // =========================================================================
       final GoogleSignInAccount? googleUser = await _googleSignIn
-          .signInSilently();
+          .attemptLightweightAuthentication();
 
       if (googleUser == null) {
         print("No existing Google user found silently.");
-        return false; // No user signed in previously or they signed out
+        return false;
       }
 
       print("Found Google user silently: ${googleUser.email}");
-
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
       final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
+        accessToken: kIsWeb ? null : googleAuth.idToken,
         idToken: googleAuth.idToken,
       );
+
       await _auth.signInWithCredential(credential);
-      print("Firebase silent sign-in successful.");
-      await _firebaseService.setupNotificationListener();
-      // Check if Firebase already has a user (more reliable)
+
       if (_auth.currentUser != null) {
-        print("Firebase user already authenticated: ${_auth.currentUser!.uid}");
+        print("Firebase silent sign-in successful: ${_auth.currentUser!.uid}");
+        await _firebaseService.setupNotificationListener();
         return true;
       } else {
-        print(
-          "Google user found, but no Firebase user. Manual login required.",
-        );
-        // Attempting Firebase sign-in here might be redundant if persistence is on.
-        // You could try signing in with the credential obtained above if needed.
-        return false; // Indicate manual login might be needed if Firebase isn't sync'd
+        print("Silent sign-in failed to produce a Firebase user.");
+        return false;
       }
     } catch (e, s) {
       print("Error during Google Silent Sign In: $e\n$s");
-      return false; // Treat errors as not signed in
+      return false;
     }
   }
 
@@ -314,45 +313,48 @@ class AuthService {
 
   Future<UserCredential?> signInWithGoogle() async {
     try {
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
+      // =========================================================================
+      // ========== FIX #2: Use the new `authenticate` method ==========
+      // =========================================================================
+      final GoogleSignInAccount? googleUser = await _googleSignIn
+          .authenticate();
+
       if (googleUser == null) {
-        print('Google Sign In cancelled.');
+        print('Google Sign In cancelled by user.');
         return null;
       }
+
       final GoogleSignInAuthentication googleAuth =
           await googleUser.authentication;
       final OAuthCredential credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
+        accessToken: kIsWeb ? null : googleAuth.idToken,
         idToken: googleAuth.idToken,
       );
-      print('Signing in to Firebase with Google...');
-      final UserCredential userCredential = await signInWithCredential(
+
+      print('Signing in to Firebase with Google credential...');
+      final UserCredential userCredential = await _auth.signInWithCredential(
         credential,
       );
-      await _firebaseService
-          .setupNotificationListener(); // <-- Use the corrected method
+
       print('Firebase Google Sign In OK: ${userCredential.user?.uid}');
+
       if (userCredential.user != null) {
         await createUserProfile(
-          // Ensure profile exists/is created after Google Sign in
           userId: userCredential.user!.uid,
           name: userCredential.user!.displayName ?? 'Google User',
           email: userCredential.user!.email ?? '',
-          phone:
-              userCredential.user!.phoneNumber ??
-              '', // Usually empty from Google
+          phone: userCredential.user!.phoneNumber ?? '',
           userType: 'client',
           photoUrl: userCredential.user!.photoURL,
-        ); // Default Google user to client
+        );
+        await _firebaseService.setupNotificationListener();
       }
       return userCredential;
     } catch (e, s) {
-      print('Google Sign In Error: $e\n$s');
+      print('❌ Google Sign In Error: $e\n$s');
       rethrow;
     }
   }
-
-  // Create user profile in Firestore
 
   // Get current user profile
   Future<AppUser?> getCurrentUserProfile() async {
@@ -370,7 +372,7 @@ class AuthService {
           .collection('professionals')
           .doc(user.uid)
           .get();
-      if (professionalDoc.exists && professionalDoc.data() != null) {
+      if (professionalDoc.exists) {
         final data = professionalDoc.data()!;
         data['id'] = user.uid; // Ensure ID is set
         print('Found professional profile for ${user.uid}');
@@ -382,7 +384,7 @@ class AuthService {
           .collection('users')
           .doc(user.uid)
           .get();
-      if (clientDoc.exists && clientDoc.data() != null) {
+      if (clientDoc.exists) {
         final data = clientDoc.data()!;
         data['id'] = user.uid; // Ensure ID is set
         print('Found client profile for ${user.uid}');

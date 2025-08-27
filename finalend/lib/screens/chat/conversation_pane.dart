@@ -17,6 +17,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_sound/flutter_sound.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
@@ -216,14 +217,10 @@ class _ConversationPaneState extends State<ConversationPane> {
     if (_currentUserId == null) return;
     _chatRoomId = _getChatRoomId(_currentUserId!, widget.otherUserId);
 
-    // This is where the AppUser objects are created
     final results = await Future.wait([
       _firebaseService.getUser(_currentUserId!),
       _firebaseService.getUser(widget.otherUserId),
     ]);
-    print(results);
-    print("this is currentuseid $_currentUserId");
-    print('this is widgetoutheruserid $widget.otherUserId');
 
     if (mounted) {
       setState(() {
@@ -591,6 +588,7 @@ class _ConversationPaneState extends State<ConversationPane> {
             isAiChat: _isAiChat,
             pickedImageBytesForAi: _pickedImageBytesForAi,
             onClearAiImage: () => setState(() => _pickedImageBytesForAi = null),
+            otherUserName: _otherUser?.name,
           ),
         ],
       ),
@@ -627,9 +625,7 @@ class _ConversationPaneState extends State<ConversationPane> {
     if (_otherUser == null) {
       return AppBar(title: const Text('Loading...'));
     }
-    final hasImage =
-        _otherUser!.profileImage != null &&
-        _otherUser!.profileImage!.isNotEmpty;
+    final hasImage = _otherUser?.profileImage?.isNotEmpty ?? false;
     return AppBar(
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
@@ -741,10 +737,6 @@ class _ConversationPaneState extends State<ConversationPane> {
     );
   }
 
-  // Place this inside your _ConversationPaneState class
-  // In conversation_pane.dart, inside _ConversationPaneState
-  // In conversation_pane.dart, inside _ConversationPaneState
-
   void _navigateToUserProfile() async {
     final String userIdToNavigate = widget.otherUserId;
 
@@ -757,7 +749,6 @@ class _ConversationPaneState extends State<ConversationPane> {
       return;
     }
 
-    // Show the loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -769,8 +760,6 @@ class _ConversationPaneState extends State<ConversationPane> {
         userIdToNavigate,
       );
 
-      // --- THIS IS THE FIX ---
-      // We MUST pop the dialog *before* we push a new screen.
       if (mounted) Navigator.pop(context);
 
       if (workerProfile != null && mounted) {
@@ -781,15 +770,12 @@ class _ConversationPaneState extends State<ConversationPane> {
           ),
         );
       } else {
-        // Handle error after popping
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Could not load worker profile.")),
         );
       }
     } catch (e) {
       print("🔥 An error occurred during navigation: $e");
-      // --- THIS IS THE FIX ---
-      // Make sure to pop the dialog on error too.
       if (mounted) Navigator.pop(context);
       ScaffoldMessenger.of(
         context,
@@ -1269,8 +1255,7 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildAvatar(ThemeData theme, bool isAiBubble) {
-    final hasImage =
-        otherUserProfileImage != null && otherUserProfileImage!.isNotEmpty;
+    final hasImage = otherUserProfileImage?.isNotEmpty ?? false;
     return CircleAvatar(
       radius: 14,
       backgroundColor: theme.colorScheme.surfaceContainerHighest,
@@ -1439,7 +1424,7 @@ class ImageMessageContent extends StatelessWidget {
   });
   @override
   Widget build(BuildContext context) {
-    final hasRemoteUrl = imageUrl != null && imageUrl!.isNotEmpty;
+    final hasRemoteUrl = imageUrl?.isNotEmpty ?? false;
 
     Widget imageWidget;
     if (isAiImage && imageBytes != null) {
@@ -1506,6 +1491,10 @@ class ImageMessageContent extends StatelessWidget {
   }
 }
 
+// =======================================================================
+// === START OF THE FINAL, WORKING AUDIO PLAYER WIDGETS
+// =======================================================================
+
 class AudioWaveformPlayer extends StatefulWidget {
   final String audioUrl;
   final bool isMe;
@@ -1520,32 +1509,130 @@ class AudioWaveformPlayer extends StatefulWidget {
   @override
   State<AudioWaveformPlayer> createState() => _AudioWaveformPlayerState();
 }
+// =======================================================================
+// === START OF THE FINAL DEBUGGING AUDIO PLAYER WIDGETS
+// =======================================================================
 
 class _AudioWaveformPlayerState extends State<AudioWaveformPlayer> {
   final audio_waveforms.PlayerController _playerController =
       audio_waveforms.PlayerController();
+  bool _isPlayerReady = false;
+  bool _hasError = false;
+  bool _isLoading = true;
+  int? _maxDurationMs;
+  double _currentSpeed = 1.0;
+  final List<double> _speeds = [1.0, 1.5, 2.0];
+  StreamSubscription<List<double>>? _waveformSubscription;
 
   @override
   void initState() {
     super.initState();
+    print("AUDIO_DEBUG: initState for ${widget.audioUrl}");
     _preparePlayer();
   }
 
   Future<void> _preparePlayer() async {
+    print("AUDIO_DEBUG: _preparePlayer() called.");
+    if (widget.audioUrl.isEmpty || !Uri.parse(widget.audioUrl).isAbsolute) {
+      print("AUDIO_DEBUG: ERROR - Invalid URL.");
+      if (mounted) setState(() => _hasError = true);
+      return;
+    }
+
     try {
+      final String pathToPlay = await _getLocalPathForAudio(widget.audioUrl);
+      print("AUDIO_DEBUG: Local path to play is $pathToPlay");
+
+      print("AUDIO_DEBUG: Setting up waveform listener...");
+      _waveformSubscription = _playerController.onCurrentExtractedWaveformData
+          .listen((wave) async {
+            print("AUDIO_DEBUG: Waveform listener triggered.");
+            if (wave.isNotEmpty && mounted && !_isPlayerReady) {
+              print("AUDIO_DEBUG: Waveform is ready! Getting duration...");
+              _maxDurationMs = await _playerController.getDuration(
+                audio_waveforms.DurationType.max,
+              );
+              print(
+                "AUDIO_DEBUG: Got duration: $_maxDurationMs ms. Updating UI to ready state.",
+              );
+              if (mounted) {
+                setState(() {
+                  _isPlayerReady = true;
+                  _isLoading = false;
+                  _hasError = false;
+                });
+              }
+              await _waveformSubscription?.cancel();
+              print("AUDIO_DEBUG: Waveform listener cancelled.");
+            }
+          });
+
+      print("AUDIO_DEBUG: Calling preparePlayer()...");
       await _playerController.preparePlayer(
-        path: widget.audioUrl,
+        path: pathToPlay,
         shouldExtractWaveform: true,
-        noOfSamples: 100,
         volume: 1.0,
       );
+      print("AUDIO_DEBUG: preparePlayer() finished.");
     } catch (e) {
-      print("Error preparing audio player: $e");
+      print("AUDIO_DEBUG: CRITICAL ERROR in _preparePlayer: $e");
+      if (mounted) {
+        setState(() {
+          _hasError = true;
+          _isLoading = false;
+        });
+      }
     }
+  }
+
+  Future<String> _getLocalPathForAudio(String url) async {
+    if (url.startsWith('http')) {
+      final tempDir = await getTemporaryDirectory();
+      final fileName = Uri.parse(url).pathSegments.last;
+      final localPath = '${tempDir.path}/$fileName';
+      final localFile = File(localPath);
+
+      if (!await localFile.exists()) {
+        print("AUDIO_DEBUG: Downloading audio from $url...");
+        final response = await http.get(Uri.parse(url));
+        if (response.statusCode == 200) {
+          await localFile.writeAsBytes(response.bodyBytes);
+          print("AUDIO_DEBUG: Download complete.");
+        } else {
+          print("AUDIO_DEBUG: ERROR - Failed to download file.");
+          throw Exception(
+            'Failed to download audio file: ${response.statusCode}',
+          );
+        }
+      } else {
+        print("AUDIO_DEBUG: Audio already cached.");
+      }
+      return localPath;
+    }
+    return url;
+  }
+
+  void _toggleSpeed() {
+    final currentIndex = _speeds.indexOf(_currentSpeed);
+    final nextIndex = (currentIndex + 1) % _speeds.length;
+    final newSpeed = _speeds[nextIndex];
+    _playerController.setRate(newSpeed);
+    setState(() => _currentSpeed = newSpeed);
+    print("AUDIO_DEBUG: Speed changed to $newSpeed");
+  }
+
+  String _formatDuration(int? milliseconds) {
+    if (milliseconds == null || milliseconds < 0) return "00:00";
+    final duration = Duration(milliseconds: milliseconds);
+    final minutes = duration.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final seconds = duration.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
   }
 
   @override
   void dispose() {
+    print("AUDIO_DEBUG: dispose() called for ${widget.audioUrl}");
+    _waveformSubscription?.cancel();
     _playerController.dispose();
     super.dispose();
   }
@@ -1553,43 +1640,126 @@ class _AudioWaveformPlayerState extends State<AudioWaveformPlayer> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final waveColor = widget.isMe
-        ? theme.colorScheme.onPrimaryContainer
-        : theme.colorScheme.onSurface.withOpacity(0.8);
-    final iconColor = widget.isMe
+    final colorScheme = widget.isMe
         ? theme.colorScheme.onPrimaryContainer
         : theme.colorScheme.onSurface;
 
+    if (_hasError) {
+      print("AUDIO_DEBUG: Building ERROR state.");
+      return _buildErrorState(theme);
+    }
+    if (_isLoading || !_isPlayerReady) {
+      print("AUDIO_DEBUG: Building LOADING state.");
+      return _buildLoadingState();
+    }
+
+    print("AUDIO_DEBUG: Building PLAYER UI state.");
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: 8.0,
         vertical: 4.0,
-      ).copyWith(right: 4),
+      ).copyWith(right: 0),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          PlayerIcon(controller: _playerController, iconColor: iconColor),
+          PlayerIcon(controller: _playerController, iconColor: colorScheme),
           Expanded(
-            child: audio_waveforms.AudioFileWaveforms(
-              size: const Size(150, 40),
-              playerController: _playerController,
-              enableSeekGesture: true,
-              waveformType: audio_waveforms.WaveformType.long,
-              playerWaveStyle: audio_waveforms.PlayerWaveStyle(
-                fixedWaveColor: waveColor.withOpacity(0.35),
-                liveWaveColor: waveColor,
-                spacing: 6,
-                showSeekLine: false,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                audio_waveforms.AudioFileWaveforms(
+                  size: const Size(double.infinity, 30.0),
+                  playerController: _playerController,
+                  enableSeekGesture: true,
+                  waveformType: audio_waveforms.WaveformType.long,
+                  playerWaveStyle: audio_waveforms.PlayerWaveStyle(
+                    fixedWaveColor: colorScheme.withOpacity(0.35),
+                    liveWaveColor: colorScheme,
+                    spacing: 4,
+                    waveThickness: 3,
+                    showSeekLine: false,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.0),
+                  child: Row(
+                    children: [
+                      StreamBuilder<int>(
+                        stream: _playerController.onCurrentDurationChanged,
+                        builder: (context, snapshot) {
+                          return Text(
+                            _formatDuration(snapshot.data),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colorScheme.withOpacity(0.7),
+                            ),
+                          );
+                        },
+                      ),
+                      const Spacer(),
+                      Text(
+                        _formatDuration(_maxDurationMs),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: colorScheme.withOpacity(0.7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            width: 50,
+            child: InkWell(
+              onTap: _toggleSpeed,
+              borderRadius: BorderRadius.circular(20),
+              child: Center(
+                child: Text(
+                  '${_currentSpeed.toStringAsFixed(1)}x',
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme,
+                  ),
+                ),
               ),
             ),
           ),
-          // The timestamp is now handled outside the bubble
         ],
       ),
     );
   }
+
+  Widget _buildLoadingState() => const Padding(
+    padding: EdgeInsets.all(12.0),
+    child: SizedBox(
+      width: 30,
+      height: 30,
+      child: CircularProgressIndicator(strokeWidth: 2),
+    ),
+  );
+
+  Widget _buildErrorState(ThemeData theme) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.error_outline, color: theme.colorScheme.error, size: 30),
+        const SizedBox(width: 8),
+        Text(
+          "Can't play audio",
+          style: TextStyle(color: theme.colorScheme.error),
+        ),
+      ],
+    ),
+  );
 }
 
+// lib/screens/chat/conversation_pane.dart
+
+// =======================================================================
+// === REPLACE ONLY THE PlayerIcon WIDGET WITH THIS FINAL CODE ===
+// =======================================================================
 class PlayerIcon extends StatelessWidget {
   const PlayerIcon({
     super.key,
@@ -1606,17 +1776,44 @@ class PlayerIcon extends StatelessWidget {
       builder: (context, snapshot) {
         final playerState =
             snapshot.data ?? audio_waveforms.PlayerState.stopped;
-        IconData iconData = Icons.play_arrow_rounded;
-        if (playerState == audio_waveforms.PlayerState.playing) {
-          iconData = Icons.pause_rounded;
-        }
+        final isPlaying = playerState == audio_waveforms.PlayerState.playing;
+
         return IconButton(
-          icon: Icon(iconData, color: iconColor, size: 30),
+          icon: Icon(
+            isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+            color: iconColor,
+            size: 30,
+          ),
           onPressed: () async {
-            if (controller.playerState.isPlaying) {
-              await controller.pausePlayer();
+            if (isPlaying) {
+              try {
+                await controller.pausePlayer();
+              } on Object catch (e) {
+                print('Error pausing player: $e');
+              }
             } else {
-              await controller.startPlayer();
+              try {
+                // --- THE FINAL LOGICAL FIX ---
+                if (playerState == audio_waveforms.PlayerState.stopped) {
+                  // Step 1: Force reset the player to the beginning using the direct native call.
+                  // This bypasses the buggy seekTo() in your library.
+                  await audio_waveforms.AudioWaveformsInterface.instance.seekTo(
+                    controller.playerKey,
+                    0,
+                  );
+
+                  // Step 2: Call pausePlayer(). This is a "no-op" that is allowed on a
+                  // stopped player, but it has the side effect of updating the
+                  // internal state to 'paused', which is what we need.
+                  await controller.pausePlayer();
+                }
+
+                // Step 3: Now that the state is guaranteed to be 'paused' (not 'stopped'),
+                // the public startPlayer() method will finally work as intended.
+                await controller.startPlayer();
+              } on Object catch (e) {
+                print('Error playing player: $e');
+              }
             }
           },
         );
@@ -2012,6 +2209,7 @@ class MessageInputComposer extends StatefulWidget {
   final bool isAiChat;
   final Uint8List? pickedImageBytesForAi;
   final VoidCallback onClearAiImage;
+  final String? otherUserName;
 
   const MessageInputComposer({
     super.key,
@@ -2024,6 +2222,7 @@ class MessageInputComposer extends StatefulWidget {
     required this.isAiChat,
     this.pickedImageBytesForAi,
     required this.onClearAiImage,
+    this.otherUserName,
   });
 
   @override
@@ -2224,6 +2423,7 @@ class _MessageInputComposerState extends State<MessageInputComposer> {
               ReplyPreview(
                 message: widget.replyingTo!,
                 onCancel: widget.onCancelReply,
+                otherUserName: widget.otherUserName,
               ),
             if (widget.pickedImageBytesForAi != null) _buildImagePreview(),
             _buildInputArea(context, hasContent),
@@ -2352,7 +2552,13 @@ class _MessageInputComposerState extends State<MessageInputComposer> {
             icon: Icons.photo_library_outlined,
             label: 'Gallery',
             onTap: () => _onAttachmentSelected(() async {
-              await _pickAndHandleImage(ImageSource.gallery);
+              if (!await _handlePermission(Permission.photos)) return;
+              final result = await file_picker.FilePicker.platform.pickFiles(
+                type: file_picker.FileType.image,
+              );
+              if (result != null && result.files.isNotEmpty) {
+                widget.onAttachment(result.files.single);
+              }
             }),
           ),
           _AttachmentButton(
@@ -2421,10 +2627,13 @@ class _AttachmentButton extends StatelessWidget {
 class ReplyPreview extends StatelessWidget {
   final ChatMessage message;
   final VoidCallback onCancel;
+  final String? otherUserName;
+
   const ReplyPreview({
     super.key,
     required this.message,
     required this.onCancel,
+    this.otherUserName,
   });
 
   @override
@@ -2432,7 +2641,9 @@ class ReplyPreview extends StatelessWidget {
     final theme = Theme.of(context);
     final isMeReplying =
         message.senderId == FirebaseService().getCurrentUser()?.uid;
-    String senderName = isMeReplying ? 'You' : message.senderId;
+    String senderName = isMeReplying
+        ? 'You'
+        : (otherUserName ?? message.senderId);
 
     String contentPreview = message.message;
     if (message.messageType == 'image') contentPreview = '📷 Photo';

@@ -670,7 +670,12 @@ abstract class AppStrings {
   String get professionalSetupStrengthIncomplete;
   String get professionalSetupStrengthGood;
   String get professionalSetupStrengthExcellent;
-
+  String get appTagline;
+  String get headline1;
+  String get headline2;
+  String get headline3;
+  String get headline4;
+  String get orDivider;
   // Section: Basic Info
   String get professionalSetupBasicTitle;
   String get professionalSetupBasicSubtitle;
@@ -724,6 +729,95 @@ abstract class AppStrings {
   String get professionalSetupLabelRate;
   String get professionalSetupAvailabilityTitle;
   String get professionalSetupAvailabilityTo;
+  // lib/services/app_string.dart
+
+  // --- General Actions (can be shared) ---
+  String get cancel;
+  String get delete;
+  String get reply;
+
+  // --- Notifications Screen (Main) ---
+  String get notifAppBarTitle;
+  String notifAppBarTitleSelected(int count);
+  String get notifTooltipSelectMode;
+  String get notifTooltipDeleteAll;
+  String get notifTabInbox;
+  String get notifTabArchived;
+
+  // --- Filter Bar ---
+  String get notifFilterTypeAll;
+  String get notifFilterTypeApplications;
+  String get notifFilterTypeUpdates;
+  String get notifFilterTypePayments;
+  String get notifFilterTypeMessages;
+  String get notifFilterStatusAll;
+  String get notifFilterStatusUnread;
+  String get notifSortDateDesc;
+  String get notifSortDateAsc;
+  String get notifSortPriority;
+
+  // --- Multi-Select & Batch Actions ---
+  String get notifTooltipMarkRead;
+  String get notifTooltipMarkUnread;
+  String get notifActionArchive;
+  String get notifActionUnarchive;
+  String notifActionDeleteCount(int count);
+  String notifMsgMarkReadSuccess(int count);
+  String get notifMsgMarkReadError;
+  String notifMsgMarkUnreadSuccess(int count);
+  String get notifMsgMarkUnreadError;
+  String notifMsgArchiveSuccess(int count);
+  String get notifMsgArchiveActionError;
+  String notifMsgUnarchiveSuccess(int count);
+  String get notifMsgUnarchiveActionError;
+  String notifMsgDeleteSuccess(int count);
+  String get notifMsgDeleteError;
+
+  // --- Dialogs ---
+  String notifDeleteAllDialogTitle(String folderName);
+  String get notifDeleteAllDialogContent;
+  String get notifDeleteAllDialogAction;
+  String get notifDeleteSingleDialogTitle;
+  String get notifDeleteSingleDialogContent;
+  String notifMsgFolderEmpty(String folderName);
+  String notifMsgDeleteAllSuccess(String folderName);
+  String get notifMsgDeleteAllError;
+  String get notifMsgDeleteSingleError;
+
+  // --- Folder Names (for dialogs/messages) ---
+  String get notifFolderNameInbox;
+  String get notifFolderNameArchived;
+
+  // --- Empty/Error States ---
+  String get notifListErrorGeneric;
+  String get notifEmptyStateTitle;
+  String get notifEmptyStateSubtitle;
+  String get notifEmptyStateFilteredTitle;
+  String get notifEmptyStateFilteredSubtitle;
+
+  // --- Notification Cards (General & Specific) ---
+  String get notifInAppDefaultTitle;
+  String get notifMsgChatError;
+  String get notifTooltipDeleteSingle;
+  String notifCardMsgFrom(String name);
+  String get notifMsgActionErrorData;
+  String get notifMsgActionErrorGeneric;
+  String get notifCardAppTitle;
+  String get notifActionDecline;
+  String get notifActionAccept;
+  String get notifCardJobInfoUnavailable;
+  String get notifJobStatusCompleted;
+  String get notifJobStatusAccepted;
+  String get notifJobStatusFilled;
+  String get notifCardJobPostedByYou;
+  String notifCardJobPostedBy(String name);
+  String get notifCardLocationNotSpecified;
+  String get notifActionViewDetails;
+  String get notifCardJobDeleted;
+  String get notifCardGenericTitle;
+  String get notifActionChatWorker;
+  String get notifActionChatClient;
+  String get timelineAssigned;
 }
 
 // ===========================================================
@@ -891,7 +985,22 @@ class AppStringsEn implements AppStrings {
   String get notSet => "Not Set";
   @override
   String get generalClose => "Close";
+  // lib/services/app_string.dart -> class AppStringsEn
 
+  // --- NEWLY ADDED STRINGS ---
+  @override
+  String get appTagline =>
+      "Connecting you with Addis Ababa's finest skilled professionals.\nFrom plumbers to painters, find trusted experts for any job.";
+  @override
+  String get headline1 => "Find Skilled Professionals.";
+  @override
+  String get headline2 => "Get Work Done Right.";
+  @override
+  String get headline3 => "Trust & Quality.";
+  @override
+  String get headline4 => "Your Project, Our Experts.";
+  @override
+  String get orDivider => "OR";
   // --- HomeScreen ---
   @override
   String helloUser(String userName) => "Hello, $userName!";
@@ -2033,6 +2142,175 @@ class AppStringsEn implements AppStrings {
   String get moreApplicantsText => "more applicants";
 
   // --- Helper Method Implementations ---
+  // English Strings Implementation
+
+  // --- General Actions ---
+  @override
+  String get cancel => "Cancel";
+  @override
+  String get delete => "Delete";
+  @override
+  String get reply => "Reply";
+
+  // --- Notifications Screen (Main) ---
+  @override
+  String get notifAppBarTitle => "Notifications Inbox";
+  @override
+  String notifAppBarTitleSelected(int count) => "$count Selected";
+  @override
+  String get notifTooltipSelectMode => "Select Mode";
+  @override
+  String get notifTooltipDeleteAll => "Delete All in Folder";
+  @override
+  String get notifTabInbox => "Inbox";
+  @override
+  String get notifTabArchived => "Archived";
+
+  // --- Filter Bar ---
+  @override
+  String get notifFilterTypeAll => "All";
+  @override
+  String get notifFilterTypeApplications => "Applications";
+  @override
+  String get notifFilterTypeUpdates => "Updates";
+  @override
+  String get notifFilterTypePayments => "Payments";
+  @override
+  String get notifFilterTypeMessages => "Messages";
+  @override
+  String get notifFilterStatusAll => "All Statuses";
+  @override
+  String get notifFilterStatusUnread => "Unread Only";
+  @override
+  String get notifSortDateDesc => "Newest First";
+  @override
+  String get notifSortDateAsc => "Oldest First";
+  @override
+  String get notifSortPriority => "By Priority";
+
+  // --- Multi-Select & Batch Actions ---
+  @override
+  String get notifTooltipMarkRead => "Mark as Read";
+  @override
+  String get notifTooltipMarkUnread => "Mark as Unread";
+  @override
+  String get notifActionArchive => "Archive";
+  @override
+  String get notifActionUnarchive => "Unarchive";
+  @override
+  String notifActionDeleteCount(int count) => "Delete ($count)";
+  @override
+  String notifMsgMarkReadSuccess(int count) =>
+      "$count notifications marked as read.";
+  @override
+  String get notifMsgMarkReadError => "Failed to mark as read.";
+  @override
+  String notifMsgMarkUnreadSuccess(int count) =>
+      "$count notifications marked as unread.";
+  @override
+  String get notifMsgMarkUnreadError => "Failed to mark as unread.";
+  @override
+  String notifMsgArchiveSuccess(int count) => "$count notifications archived.";
+  @override
+  String get notifMsgArchiveActionError => "Failed to archive.";
+  @override
+  String notifMsgUnarchiveSuccess(int count) =>
+      "$count notifications unarchived.";
+  @override
+  String get notifMsgUnarchiveActionError => "Failed to unarchive.";
+  @override
+  String notifMsgDeleteSuccess(int count) => "$count notifications deleted.";
+  @override
+  String get notifMsgDeleteError => "Failed to delete.";
+
+  // --- Dialogs ---
+  @override
+  String notifDeleteAllDialogTitle(String folderName) =>
+      "Delete All in $folderName?";
+  @override
+  String get notifDeleteAllDialogContent =>
+      "This will permanently delete all notifications in this folder. This action cannot be undone.";
+  @override
+  String get notifDeleteAllDialogAction => "Delete All";
+  @override
+  String get notifDeleteSingleDialogTitle => "Delete Notification?";
+  @override
+  String get notifDeleteSingleDialogContent =>
+      "This action is permanent and cannot be undone.";
+  @override
+  String notifMsgFolderEmpty(String folderName) =>
+      "The $folderName folder is already empty.";
+  @override
+  String notifMsgDeleteAllSuccess(String folderName) =>
+      "All notifications in $folderName deleted.";
+  @override
+  String get notifMsgDeleteAllError => "Failed to delete notifications.";
+  @override
+  String get notifMsgDeleteSingleError => "Failed to delete notification.";
+
+  // --- Folder Names (for dialogs/messages) ---
+  @override
+  String get notifFolderNameInbox => "Inbox";
+  @override
+  String get notifFolderNameArchived => "Archived";
+
+  // --- Empty/Error States ---
+  @override
+  String get notifListErrorGeneric =>
+      "An error occurred while loading notifications.";
+  @override
+  String get notifEmptyStateTitle => "This Folder is Empty";
+  @override
+  String get notifEmptyStateSubtitle => "You have no notifications here.";
+  @override
+  String get notifEmptyStateFilteredTitle => "No Matches Found";
+  @override
+  String get notifEmptyStateFilteredSubtitle =>
+      "Try adjusting your filters to see more notifications.";
+
+  // --- Notification Cards (General & Specific) ---
+  @override
+  String get notifInAppDefaultTitle => "New Notification";
+  @override
+  String get notifMsgChatError => "Could not open chat. Data missing.";
+  @override
+  String get notifTooltipDeleteSingle => "Delete Notification";
+  @override
+  String notifCardMsgFrom(String name) => "Message from $name";
+  @override
+  String get notifMsgActionErrorData => "Error: Missing required data.";
+  @override
+  String get notifMsgActionErrorGeneric => "Action failed. Please try again.";
+  @override
+  String get notifCardAppTitle => "Job Application";
+  @override
+  String get notifActionDecline => "Decline";
+  @override
+  String get notifActionAccept => "Accept";
+  @override
+  String get notifCardJobInfoUnavailable => "Job info unavailable";
+  @override
+  String get notifJobStatusCompleted => "JOB COMPLETED";
+  @override
+  String get notifJobStatusAccepted => "ACCEPTED";
+  @override
+  String get notifJobStatusFilled => "FILLED BY ANOTHER";
+  @override
+  String get notifCardJobPostedByYou => "You posted a new job";
+  @override
+  String notifCardJobPostedBy(String name) => "$name posted a new job";
+  @override
+  String get notifCardLocationNotSpecified => "Not specified";
+  @override
+  String get notifActionViewDetails => "View Details";
+  @override
+  String get notifCardJobDeleted => "This job may have been deleted.";
+  @override
+  String get notifCardGenericTitle => "Notification";
+  @override
+  String get notifActionChatWorker => "Chat with Worker";
+  @override
+  String get notifActionChatClient => "Chat with Client";
   @override
   String getStatusName(String key) {
     switch (key.toLowerCase()) {
@@ -2222,6 +2500,8 @@ class AppStringsEn implements AppStrings {
   String get gridViewTooltip => "Grid View";
   @override
   String get distanceLabel => "Distance";
+  @override
+  String get timelineAssigned => "time";
   @override
   String get locationTitle => "Location";
   @override
@@ -2444,6 +2724,22 @@ class AppStringsAm implements AppStrings {
   String get settingsAccountSubtitle => "የአካውንት ቅንብሮች";
   @override
   String get switchedToClientView => "ወደ ደንበኛ እይታ ተቀይሯል";
+  // lib/services/app_string.dart -> class AppStringsAm
+
+  // --- NEWLY ADDED STRINGS ---
+  @override
+  String get appTagline =>
+      "ከአዲስ አበባ ምርጥ ችሎታ ካላቸው ባለሙያዎች ጋር እናገናኝዎታለን።\nከቧንቧ ሰራተኞች እስከ ቀቢዎች፣ ለማንኛውም ስራ ታማኝ ባለሙያዎችን ያግኙ።";
+  @override
+  String get headline1 => "ችሎታ ያላቸው ባለሙያዎችን ያግኙ።";
+  @override
+  String get headline2 => "ስራዎን በአግባቡ ያስፈጽሙ።";
+  @override
+  String get headline3 => "ታማኝነት እና ጥራት።";
+  @override
+  String get headline4 => "የእርስዎ ፕሮጀክት፣ የእኛ ባለሙያዎች።";
+  @override
+  String get orDivider => "ወይም";
   @override
   String get switchedToWorkerView => "ወደ ባለሙያ እይታ ተቀይሯል";
   @override
@@ -3892,6 +4188,174 @@ class AppStringsAm implements AppStrings {
   String get professionalSetupAvailabilityTitle => "ሳምንታዊ ተገኝነት";
   @override
   String get professionalSetupAvailabilityTo => "እስከ";
+  // Amharic Strings Implementation
+
+  // --- General Actions ---
+  @override
+  String get cancel => "ይቅር";
+  @override
+  String get delete => "አጥፋ";
+  @override
+  String get reply => "ምላሽ ስጥ";
+
+  // --- Notifications Screen (Main) ---
+  @override
+  String get notifAppBarTitle => "የማሳወቂያ ገቢ መልዕክቶች";
+  @override
+  String notifAppBarTitleSelected(int count) => "$count ተመርጠዋል";
+  @override
+  String get notifTooltipSelectMode => "የመምረጫ ሁነታ";
+  @override
+  String get notifTooltipDeleteAll => "በማህደር ውስጥ ያሉትን ሁሉንም አጥፋ";
+  @override
+  String get notifTabInbox => "ገቢ መልዕክቶች";
+  @override
+  String get notifTabArchived => "በማህደር የተቀመጡ";
+
+  // --- Filter Bar ---
+  @override
+  String get notifFilterTypeAll => "ሁሉም";
+  @override
+  String get notifFilterTypeApplications => "ማመልከቻዎች";
+  @override
+  String get notifFilterTypeUpdates => "ዝመናዎች";
+  @override
+  String get notifFilterTypePayments => "ክፍያዎች";
+  @override
+  String get notifFilterTypeMessages => "መልዕክቶች";
+  @override
+  String get notifFilterStatusAll => "ሁሉም ሁኔታዎች";
+  @override
+  String get notifFilterStatusUnread => "ያልተነበቡ ብቻ";
+  @override
+  String get notifSortDateDesc => "አዲስ በመጀመሪያ";
+  @override
+  String get notifSortDateAsc => "የቆየ በመጀመሪያ";
+  @override
+  String get notifSortPriority => "በቅድሚያ";
+
+  // --- Multi-Select & Batch Actions ---
+  @override
+  String get notifTooltipMarkRead => "እንደተነበበ ምልክት አድርግ";
+  @override
+  String get notifTooltipMarkUnread => "እንዳልተነበበ ምልክት አድርግ";
+  @override
+  String get notifActionArchive => "በማህደር አስቀምጥ";
+  @override
+  String get notifActionUnarchive => "ከማህደር አውጣ";
+  @override
+  String notifActionDeleteCount(int count) => "አጥፋ ($count)";
+  @override
+  String notifMsgMarkReadSuccess(int count) =>
+      "$count ማሳወቂያዎች እንደተነበቡ ምልክት ተደርጎባቸዋል።";
+  @override
+  String get notifMsgMarkReadError => "እንደተነበበ ምልክት ማድረግ አልተቻለም።";
+  @override
+  String notifMsgMarkUnreadSuccess(int count) =>
+      "$count ማሳወቂያዎች እንዳልተነበቡ ምልክት ተደርጎባቸዋል።";
+  @override
+  String get notifMsgMarkUnreadError => "እንዳልተነበበ ምልክት ማድረግ አልተቻለም።";
+  @override
+  String notifMsgArchiveSuccess(int count) => "$count ማሳወቂያዎች በማህደር ተቀምጠዋል።";
+  @override
+  String get notifMsgArchiveActionError => "በማህደር ማስቀመጥ አልተቻለም።";
+  @override
+  String notifMsgUnarchiveSuccess(int count) => "$count ማሳወቂያዎች ከማህደር ወጥተዋል።";
+  @override
+  String get notifMsgUnarchiveActionError => "ከማህደር ማውጣት አልተቻለም።";
+  @override
+  String notifMsgDeleteSuccess(int count) => "$count ማሳወቂያዎች ተሰርዘዋል።";
+  @override
+  String get notifMsgDeleteError => "ማጥፋት አልተቻለም።";
+
+  // --- Dialogs ---
+  @override
+  String notifDeleteAllDialogTitle(String folderName) =>
+      "በ$folderName ውስጥ ያሉትን ሁሉንም ማጥፋት ይፈልጋሉ?";
+  @override
+  String get notifDeleteAllDialogContent =>
+      "ይህ በዚህ ማህደር ውስጥ ያሉትን ሁሉንም ማሳወቂያዎች በቋሚነት ያጠፋል። ይህ ድርጊት ሊቀለበስ አይችልም።";
+  @override
+  String get notifDeleteAllDialogAction => "ሁሉንም አጥፋ";
+  @override
+  String get notifDeleteSingleDialogTitle => "ማሳወቂያውን ማጥፋት ይፈልጋሉ?";
+  @override
+  String get notifDeleteSingleDialogContent => "ይህ ድርጊት ቋሚ ሲሆን ሊቀለበስ አይችልም።";
+  @override
+  String notifMsgFolderEmpty(String folderName) =>
+      "የ$folderName ማህደር አስቀድሞ ባዶ ነው።";
+  @override
+  String notifMsgDeleteAllSuccess(String folderName) =>
+      "በ$folderName ውስጥ ያሉ ሁሉም ማሳወቂያዎች ተሰርዘዋል።";
+  @override
+  String get notifMsgDeleteAllError => "ማሳወቂያዎችን መሰረዝ አልተቻለም።";
+  @override
+  String get notifMsgDeleteSingleError => "ማሳወቂያውን መሰረዝ አልተቻለም።";
+
+  // --- Folder Names (for dialogs/messages) ---
+  @override
+  String get notifFolderNameInbox => "ገቢ መልዕክቶች";
+  @override
+  String get notifFolderNameArchived => "ማህደር";
+
+  // --- Empty/Error States ---
+  @override
+  String get notifListErrorGeneric => "ማሳወቂያዎችን በሚጫንበት ጊዜ ስህተት አጋጥሟል።";
+  @override
+  String get notifEmptyStateTitle => "ይህ ማህደር ባዶ ነው";
+  @override
+  String get notifEmptyStateSubtitle => "እዚህ ምንም ማሳወቂያ የለዎትም።";
+  @override
+  String get notifEmptyStateFilteredTitle => "ምንም ውጤት አልተገኘም";
+  @override
+  String get notifEmptyStateFilteredSubtitle =>
+      "ተጨማሪ ማሳወቂያዎችን ለማየት ማጣሪያዎችዎን ለማስተካከል ይሞክሩ።";
+
+  // --- Notification Cards (General & Specific) ---
+  @override
+  String get notifInAppDefaultTitle => "አዲስ ማሳወቂያ";
+  @override
+  String get notifMsgChatError => "ውይይቱን መክፈት አልተቻለም። መረጃው ጠፍቷል።";
+  @override
+  String get notifTooltipDeleteSingle => "ማሳወቂያውን አጥፋ";
+  @override
+  String notifCardMsgFrom(String name) => "ከ$name የተላከ መልዕክት";
+  @override
+  String get notifMsgActionErrorData => "ስህተት፦ አስፈላጊ መረጃዎች ጠፍተዋል።";
+  @override
+  String get notifMsgActionErrorGeneric => "ድርጊቱ አልተሳካም። እባክዎ እንደገና ይሞክሩ።";
+  @override
+  String get notifCardAppTitle => "የሥራ ማመልከቻ";
+  @override
+  String get notifActionDecline => "አትቀበል";
+  @override
+  String get notifActionAccept => "ተቀበል";
+  @override
+  String get notifCardJobInfoUnavailable => "የሥራው መረጃ አይገኝም";
+  @override
+  String get notifJobStatusCompleted => "ሥራው ተጠናቋል";
+  @override
+  String get notifJobStatusAccepted => "ተቀብለዋል";
+  @override
+  String get timelineAssigned => "ግዜ";
+  @override
+  String get notifJobStatusFilled => "በሌላ ተይዟል";
+  @override
+  String get notifCardJobPostedByYou => "አዲስ ሥራ ለጥፈዋል";
+  @override
+  String notifCardJobPostedBy(String name) => "$name አዲስ ሥራ ለጥፏል";
+  @override
+  String get notifCardLocationNotSpecified => "አልተገለጸም";
+  @override
+  String get notifActionViewDetails => "ዝርዝሮችን ይመልከቱ";
+  @override
+  String get notifCardJobDeleted => "ይህ ሥራ የተሰረዘ ሊሆን ይችላል።";
+  @override
+  String get notifCardGenericTitle => "ማሳወቂያ";
+  @override
+  String get notifActionChatWorker => "ከባለሙያው ጋር ይወያዩ";
+  @override
+  String get notifActionChatClient => "ከደንበኛው ጋር ይወያዩ";
 }
 
 // ===========================================================

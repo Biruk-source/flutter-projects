@@ -14,6 +14,7 @@ import 'dart:ui' as ui;
 import 'package:another_flushbar/flushbar.dart';
 
 // --- Project Imports ---
+import '../services/app_string.dart'; // <-- IMPORT APPSTRINGS
 import '../services/firebase_service.dart';
 import '../models/job.dart';
 import '../models/worker.dart';
@@ -27,13 +28,7 @@ enum NotificationFilter { all, unread }
 
 enum NotificationSort { dateDesc, dateAsc, priority }
 
-enum NotificationTypeFilter {
-  all,
-  applications,
-  updates,
-  payments,
-  messages,
-} // ADDED messages
+enum NotificationTypeFilter { all, applications, updates, payments, messages }
 
 // =======================================================================
 // === HELPER FUNCTION & CLASSES
@@ -98,6 +93,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
 
   void _markAllAsRead(List<Map<String, dynamic>> notifications) {
     if (!mounted) return;
+    final appStrings = AppLocalizations.of(context)!;
     final unreadIds = notifications
         .where((n) => !_safeReadBool(n['isRead']))
         .map((n) => n['id'] as String)
@@ -108,7 +104,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
           .catchError((error) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text("Couldn't mark all as read.")),
+                SnackBar(content: Text(appStrings.notifMsgActionErrorGeneric)),
               );
             }
           });
@@ -177,19 +173,21 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   }
 
   void _showDeleteAllConfirmationDialog() {
+    final appStrings = AppLocalizations.of(context)!;
     final isArchived = _tabController.index == 1;
-    final folderName = isArchived ? "Archived" : "Inbox";
+    final folderName = isArchived
+        ? appStrings.notifFolderNameArchived
+        : appStrings.notifFolderNameInbox;
+
     showDialog(
       context: context,
       builder: (BuildContext context) => AlertDialog(
-        title: Text("Delete All in $folderName?"),
-        content: const Text(
-          "This will permanently delete all notifications in this folder. This action cannot be undone.",
-        ),
+        title: Text(appStrings.notifDeleteAllDialogTitle(folderName)),
+        content: Text(appStrings.notifDeleteAllDialogContent),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text("Cancel"),
+            child: Text(appStrings.cancel),
           ),
           TextButton(
             style: TextButton.styleFrom(
@@ -199,7 +197,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
               Navigator.of(context).pop();
               _deleteAllNotificationsInCurrentTab();
             },
-            child: const Text("Delete All"),
+            child: Text(appStrings.notifDeleteAllDialogAction),
           ),
         ],
       ),
@@ -208,8 +206,11 @@ class _NotificationsScreenState extends State<NotificationsScreen>
 
   Future<void> _deleteAllNotificationsInCurrentTab() async {
     if (!mounted) return;
+    final appStrings = AppLocalizations.of(context)!;
     final isArchived = _tabController.index == 1;
-    final folderName = isArchived ? "Archived" : "Inbox";
+    final folderName = isArchived
+        ? appStrings.notifFolderNameArchived
+        : appStrings.notifFolderNameInbox;
     try {
       final notificationsStream = await _firebaseService.getNotificationsStream(
         isArchived: isArchived,
@@ -219,7 +220,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       if (currentNotifications.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("The $folderName folder is already empty.")),
+            SnackBar(content: Text(appStrings.notifMsgFolderEmpty(folderName))),
           );
         }
         return;
@@ -231,7 +232,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("All notifications in $folderName deleted."),
+            content: Text(appStrings.notifMsgDeleteAllSuccess(folderName)),
             backgroundColor: Colors.green,
           ),
         );
@@ -240,7 +241,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Failed to delete notifications: $e"),
+            content: Text(appStrings.notifMsgDeleteAllError),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
@@ -251,6 +252,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final appStrings = AppLocalizations.of(context)!;
     return Scaffold(
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) {
@@ -258,8 +260,10 @@ class _NotificationsScreenState extends State<NotificationsScreen>
             SliverAppBar(
               title: Text(
                 _isMultiSelectMode
-                    ? "${_selectedNotificationIds.length} Selected"
-                    : "Notifications Inbox",
+                    ? appStrings.notifAppBarTitleSelected(
+                        _selectedNotificationIds.length,
+                      )
+                    : appStrings.notifAppBarTitle,
               ),
               pinned: true,
               floating: true,
@@ -275,20 +279,26 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   : [
                       IconButton(
                         icon: const Icon(Icons.select_all_outlined),
-                        tooltip: "Select Mode",
+                        tooltip: appStrings.notifTooltipSelectMode,
                         onPressed: _toggleMultiSelectMode,
                       ),
                       IconButton(
                         icon: const Icon(Icons.delete_sweep_outlined),
-                        tooltip: "Delete All in Folder",
+                        tooltip: appStrings.notifTooltipDeleteAll,
                         onPressed: _showDeleteAllConfirmationDialog,
                       ),
                     ],
               bottom: TabBar(
                 controller: _tabController,
-                tabs: const [
-                  Tab(icon: Icon(Icons.inbox_outlined), text: "Inbox"),
-                  Tab(icon: Icon(Icons.archive_outlined), text: "Archived"),
+                tabs: [
+                  Tab(
+                    icon: const Icon(Icons.inbox_outlined),
+                    text: appStrings.notifTabInbox,
+                  ),
+                  Tab(
+                    icon: const Icon(Icons.archive_outlined),
+                    text: appStrings.notifTabArchived,
+                  ),
                 ],
               ),
             ),
@@ -337,31 +347,49 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   }
 
   List<Widget> _buildMultiSelectActions() {
+    final appStrings = AppLocalizations.of(context)!;
     return [
       IconButton(
         icon: const Icon(Icons.mark_email_read_outlined),
-        tooltip: "Mark as Read",
+        tooltip: appStrings.notifTooltipMarkRead,
         onPressed: () => _performBatchAction(
           (ids) =>
               _firebaseService.batchUpdateNotifications(ids, {'isRead': true}),
-          "${_selectedNotificationIds.length} notifications marked as read.",
-          "Failed to mark as read.",
+          appStrings.notifMsgMarkReadSuccess(_selectedNotificationIds.length),
+          appStrings.notifMsgMarkReadError,
         ),
       ),
       IconButton(
         icon: const Icon(Icons.mark_email_unread_outlined),
-        tooltip: "Mark as Unread",
+        tooltip: appStrings.notifTooltipMarkUnread,
         onPressed: () => _performBatchAction(
           (ids) =>
               _firebaseService.batchUpdateNotifications(ids, {'isRead': false}),
-          "${_selectedNotificationIds.length} notifications marked as unread.",
-          "Failed to mark as unread.",
+          appStrings.notifMsgMarkUnreadSuccess(_selectedNotificationIds.length),
+          appStrings.notifMsgMarkUnreadError,
         ),
       ),
     ];
   }
 
   Widget _buildFilterBar(ThemeData theme) {
+    final appStrings = AppLocalizations.of(context)!;
+
+    String getFilterTypeName(NotificationTypeFilter type) {
+      switch (type) {
+        case NotificationTypeFilter.all:
+          return appStrings.notifFilterTypeAll;
+        case NotificationTypeFilter.applications:
+          return appStrings.notifFilterTypeApplications;
+        case NotificationTypeFilter.updates:
+          return appStrings.notifFilterTypeUpdates;
+        case NotificationTypeFilter.payments:
+          return appStrings.notifFilterTypePayments;
+        case NotificationTypeFilter.messages:
+          return appStrings.notifFilterTypeMessages;
+      }
+    }
+
     return Material(
       elevation: 1,
       color: theme.colorScheme.surface,
@@ -377,7 +405,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   return Padding(
                     padding: const EdgeInsets.only(right: 8.0),
                     child: ChoiceChip(
-                      label: Text(toBeginningOfSentenceCase(type.name)!),
+                      label: Text(getFilterTypeName(type)),
                       selected: _currentTypeFilter == type,
                       onSelected: (val) {
                         if (val) setState(() => _currentTypeFilter = type);
@@ -395,14 +423,14 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   DropdownButton<NotificationFilter>(
                     value: _currentFilter,
                     underline: const SizedBox(),
-                    items: const [
+                    items: [
                       DropdownMenuItem(
                         value: NotificationFilter.all,
-                        child: Text("All Statuses"),
+                        child: Text(appStrings.notifFilterStatusAll),
                       ),
                       DropdownMenuItem(
                         value: NotificationFilter.unread,
-                        child: Text("Unread Only"),
+                        child: Text(appStrings.notifFilterStatusUnread),
                       ),
                     ],
                     onChanged: (val) => setState(() => _currentFilter = val!),
@@ -410,18 +438,18 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   DropdownButton<NotificationSort>(
                     value: _currentSort,
                     underline: const SizedBox(),
-                    items: const [
+                    items: [
                       DropdownMenuItem(
                         value: NotificationSort.dateDesc,
-                        child: Text("Newest First"),
+                        child: Text(appStrings.notifSortDateDesc),
                       ),
                       DropdownMenuItem(
                         value: NotificationSort.dateAsc,
-                        child: Text("Oldest First"),
+                        child: Text(appStrings.notifSortDateAsc),
                       ),
                       DropdownMenuItem(
                         value: NotificationSort.priority,
-                        child: Text("By Priority"),
+                        child: Text(appStrings.notifSortPriority),
                       ),
                     ],
                     onChanged: (val) => setState(() => _currentSort = val!),
@@ -436,7 +464,9 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   }
 
   Widget _buildMultiSelectActionBar(ThemeData theme) {
+    final appStrings = AppLocalizations.of(context)!;
     bool isArchivedView = _tabController.index == 1;
+
     return BottomAppBar(
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -447,25 +477,41 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                   ? Icons.unarchive_outlined
                   : Icons.archive_outlined,
             ),
-            label: Text(isArchivedView ? "Unarchive" : "Archive"),
+            label: Text(
+              isArchivedView
+                  ? appStrings.notifActionUnarchive
+                  : appStrings.notifActionArchive,
+            ),
             onPressed: () => _performBatchAction(
               (ids) => _firebaseService.batchUpdateNotifications(ids, {
                 'isArchived': !isArchivedView,
               }),
-              "${_selectedNotificationIds.length} notifications ${isArchivedView ? 'unarchived' : 'archived'}.",
-              "Failed to ${isArchivedView ? 'unarchive' : 'archive'}.",
+              isArchivedView
+                  ? appStrings.notifMsgUnarchiveSuccess(
+                      _selectedNotificationIds.length,
+                    )
+                  : appStrings.notifMsgArchiveSuccess(
+                      _selectedNotificationIds.length,
+                    ),
+              isArchivedView
+                  ? appStrings.notifMsgUnarchiveActionError
+                  : appStrings.notifMsgArchiveActionError,
             ),
           ),
           TextButton.icon(
             icon: const Icon(Icons.delete_sweep_outlined),
-            label: Text("Delete (${_selectedNotificationIds.length})"),
+            label: Text(
+              appStrings.notifActionDeleteCount(
+                _selectedNotificationIds.length,
+              ),
+            ),
             style: TextButton.styleFrom(
               foregroundColor: theme.colorScheme.error,
             ),
             onPressed: () => _performBatchAction(
               _firebaseService.batchDeleteNotifications,
-              "${_selectedNotificationIds.length} notifications deleted.",
-              "Failed to delete.",
+              appStrings.notifMsgDeleteSuccess(_selectedNotificationIds.length),
+              appStrings.notifMsgDeleteError,
             ),
           ),
         ],
@@ -490,7 +536,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
                 type.contains('rejected');
           case NotificationTypeFilter.payments:
             return type.contains('payment');
-          case NotificationTypeFilter.messages: // ADDED THIS CASE
+          case NotificationTypeFilter.messages:
             return type == 'message_received';
           default:
             return true;
@@ -559,6 +605,7 @@ class _NotificationListViewState extends State<_NotificationListView> {
     BuildContext context,
     Map<String, dynamic> notification,
   ) {
+    final appStrings = AppLocalizations.of(context)!;
     final data = notification['data'] as Map<String, dynamic>? ?? {};
     final theme = Theme.of(context);
 
@@ -568,13 +615,12 @@ class _NotificationListViewState extends State<_NotificationListView> {
     } else if (notification['type'] == 'job_accepted') {
       imageUrl = data['clientImageUrl'] as String?;
     } else if (notification['type'] == 'message_received') {
-      // ADDED
       imageUrl = data['senderImageUrl'] as String?;
     }
 
     Flushbar(
       titleText: Text(
-        notification['title'] ?? 'New Notification',
+        notification['title'] ?? appStrings.notifInAppDefaultTitle,
         style: theme.textTheme.titleMedium?.copyWith(
           fontWeight: FontWeight.bold,
           color: theme.colorScheme.onPrimaryContainer,
@@ -601,9 +647,7 @@ class _NotificationListViewState extends State<_NotificationListView> {
               )
             : null,
       ),
-      onTap: (_) {
-        // This logic is now handled by the individual cards for more flexibility
-      },
+      onTap: (_) {},
       duration: const Duration(seconds: 4),
       flushbarPosition: FlushbarPosition.TOP,
       backgroundColor: theme.colorScheme.primaryContainer,
@@ -620,15 +664,16 @@ class _NotificationListViewState extends State<_NotificationListView> {
   }
 
   void _deleteNotification(String id) {
+    final appStrings = AppLocalizations.of(context)!;
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Notification?'),
-        content: const Text('This action is permanent and cannot be undone.'),
+        title: Text(appStrings.notifDeleteSingleDialogTitle),
+        content: Text(appStrings.notifDeleteSingleDialogContent),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(appStrings.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -637,14 +682,14 @@ class _NotificationListViewState extends State<_NotificationListView> {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text("Failed to delete notification: $e"),
+                      content: Text(appStrings.notifMsgDeleteSingleError),
                       backgroundColor: Theme.of(context).colorScheme.error,
                     ),
                   );
                 }
               });
             },
-            child: const Text('Delete'),
+            child: Text(appStrings.delete),
             style: TextButton.styleFrom(
               foregroundColor: Theme.of(context).colorScheme.error,
             ),
@@ -656,6 +701,7 @@ class _NotificationListViewState extends State<_NotificationListView> {
 
   @override
   Widget build(BuildContext context) {
+    final appStrings = AppLocalizations.of(context)!;
     return FutureBuilder<Stream<List<Map<String, dynamic>>>>(
       future: widget.streamFuture,
       builder: (context, futureSnapshot) {
@@ -667,7 +713,7 @@ class _NotificationListViewState extends State<_NotificationListView> {
           return Center(
             child: Padding(
               padding: const EdgeInsets.all(16.0),
-              child: Text('Error: ${futureSnapshot.error}'),
+              child: Text(appStrings.notifListErrorGeneric),
             ),
           );
         }
@@ -687,7 +733,7 @@ class _NotificationListViewState extends State<_NotificationListView> {
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
-                  child: Text('Error: ${streamSnapshot.error}'),
+                  child: Text(appStrings.notifListErrorGeneric),
                 ),
               );
             }
@@ -769,6 +815,7 @@ class _NotificationListViewState extends State<_NotificationListView> {
   }
 
   Widget _buildEmptyState(BuildContext context, {bool isFiltered = false}) {
+    final appStrings = AppLocalizations.of(context)!;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -784,14 +831,16 @@ class _NotificationListViewState extends State<_NotificationListView> {
             ),
             const SizedBox(height: 24),
             Text(
-              isFiltered ? 'No Matches Found' : 'This Folder is Empty',
+              isFiltered
+                  ? appStrings.notifEmptyStateFilteredTitle
+                  : appStrings.notifEmptyStateTitle,
               style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 12),
             Text(
               isFiltered
-                  ? 'Try adjusting your filters to see more notifications.'
-                  : 'You have no notifications here.',
+                  ? appStrings.notifEmptyStateFilteredSubtitle
+                  : appStrings.notifEmptyStateSubtitle,
               style: Theme.of(context).textTheme.bodyLarge,
               textAlign: TextAlign.center,
             ),
@@ -828,7 +877,6 @@ class _NotificationCardRouter extends StatelessWidget {
     final type = notification['type'] as String? ?? '';
     Widget card;
     switch (type) {
-      // NEW: ADDED THIS CASE FOR MESSAGES
       case 'message_received':
         card = _ChatMessageCard(notification: notification, onDelete: onDelete);
         break;
@@ -862,8 +910,6 @@ class _NotificationCardRouter extends StatelessWidget {
         if (isMultiSelectMode) {
           onSelected();
         } else {
-          // --- IMPROVED TAP LOGIC ---
-          // The Chat card handles its own tap. For all others, we go to the job detail.
           if (type != 'message_received') {
             final data = notification['data'] as Map<String, dynamic>? ?? {};
             final jobId = data['jobId'];
@@ -930,7 +976,6 @@ class _NotificationCardRouter extends StatelessWidget {
     );
   }
 }
-// lib/screens/notifications_screen.dart
 
 // =======================================================================
 // === REPLACEMENT CHAT MESSAGE CARD (SIMPLE AND DIRECT)
@@ -941,10 +986,9 @@ class _ChatMessageCard extends StatelessWidget {
 
   const _ChatMessageCard({required this.notification, required this.onDelete});
 
-  // NEW AND CORRECT
   void _navigateToChat(BuildContext context) {
     FirebaseService().markNotificationAsRead(notification['id']);
-
+    final appStrings = AppLocalizations.of(context)!;
     final data = notification['data'] as Map<String, dynamic>? ?? {};
     final senderId = data['senderId'] as String?;
 
@@ -952,26 +996,23 @@ class _ChatMessageCard extends StatelessWidget {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => UnifiedChatScreen(
-            // <-- FIX: Use the new name
-            initialSelectedUserId: senderId, // <-- FIX: Use the new parameter
-          ),
+          builder: (context) =>
+              UnifiedChatScreen(initialSelectedUserId: senderId),
         ),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Could not open chat. Data missing.")),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(appStrings.notifMsgChatError)));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final appStrings = AppLocalizations.of(context)!;
     final isRead = _safeReadBool(notification['isRead']);
     final data = notification['data'] as Map<String, dynamic>? ?? {};
-
-    // --- THIS IS THE FIX: Read the name and image directly from the data ---
     final senderName = data['senderName'] as String? ?? 'Someone';
     final senderImageUrl = data['senderImageUrl'] as String?;
     final hasImage = senderImageUrl != null && senderImageUrl.isNotEmpty;
@@ -1017,7 +1058,7 @@ class _ChatMessageCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Message from $senderName',
+                              appStrings.notifCardMsgFrom(senderName),
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
@@ -1035,7 +1076,7 @@ class _ChatMessageCard extends StatelessWidget {
                           ],
                         ),
                       ),
-                      const SizedBox(width: 30), // Space for delete icon
+                      const SizedBox(width: 30),
                     ],
                   ),
                   const SizedBox(height: 12),
@@ -1045,8 +1086,7 @@ class _ChatMessageCard extends StatelessWidget {
                       ElevatedButton.icon(
                         onPressed: () => _navigateToChat(context),
                         icon: const Icon(Icons.reply_rounded, size: 18),
-                        label: const Text("Reply"),
-                        // --- STYLE TO MATCH YOUR SCREENSHOT ---
+                        label: Text(appStrings.reply),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.amber,
                           foregroundColor: Colors.black,
@@ -1069,7 +1109,7 @@ class _ChatMessageCard extends StatelessWidget {
                 ),
                 onPressed: onDelete,
                 splashRadius: 20,
-                tooltip: 'Delete Notification',
+                tooltip: appStrings.notifTooltipDeleteSingle,
               ),
             ),
           ],
@@ -1079,7 +1119,7 @@ class _ChatMessageCard extends StatelessWidget {
   }
 }
 // =======================================================================
-// === OTHER CARDS & WIDGETS (UNCHANGED BUT INCLUDED FOR COMPLETENESS)
+// === OTHER CARDS & WIDGETS
 // =======================================================================
 
 class _ChatButton extends StatelessWidget {
@@ -1088,6 +1128,7 @@ class _ChatButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final appStrings = AppLocalizations.of(context)!;
     final firebaseService = FirebaseService();
     final currentUserId = firebaseService.getCurrentUser()?.uid;
     if (currentUserId == null) return const SizedBox.shrink();
@@ -1095,8 +1136,8 @@ class _ChatButton extends StatelessWidget {
     final isUserTheClient = job.clientId == currentUserId;
     final otherUserId = isUserTheClient ? job.workerId : job.clientId;
     final buttonText = isUserTheClient
-        ? "Chat with Worker"
-        : "Chat with Client";
+        ? appStrings.notifActionChatWorker
+        : appStrings.notifActionChatClient;
 
     if (otherUserId == null || otherUserId.isEmpty) {
       return const SizedBox.shrink();
@@ -1113,11 +1154,8 @@ class _ChatButton extends StatelessWidget {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => UnifiedChatScreen(
-              // <-- FIX: Use the new name
-              initialSelectedUserId:
-                  otherUserId, // <-- FIX: Use the new parameter
-            ),
+            builder: (context) =>
+                UnifiedChatScreen(initialSelectedUserId: otherUserId),
           ),
         );
       },
@@ -1144,6 +1182,7 @@ class _JobApplicationCardState extends State<_JobApplicationCard> {
 
   Future<void> _handleAction(bool accept) async {
     if (!mounted) return;
+    final appStrings = AppLocalizations.of(context)!;
     setState(() => _isActionLoading = true);
     final data = widget.notification['data'] as Map<String, dynamic>? ?? {};
     final workerId = data['workerId'] as String?;
@@ -1152,7 +1191,7 @@ class _JobApplicationCardState extends State<_JobApplicationCard> {
     if (currentUser == null || workerId == null || jobId == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Error: Missing required data.")),
+          SnackBar(content: Text(appStrings.notifMsgActionErrorData)),
         );
       }
       setState(() => _isActionLoading = false);
@@ -1177,7 +1216,7 @@ class _JobApplicationCardState extends State<_JobApplicationCard> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text("Action failed: $e"),
+            content: Text(appStrings.notifMsgActionErrorGeneric),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );
@@ -1190,6 +1229,7 @@ class _JobApplicationCardState extends State<_JobApplicationCard> {
   @override
   Widget build(BuildContext context) {
     final notification = widget.notification;
+    final appStrings = AppLocalizations.of(context)!;
     final data = notification['data'] as Map<String, dynamic>? ?? {};
     final isRead = _safeReadBool(notification['isRead']);
     final theme = Theme.of(context);
@@ -1243,7 +1283,8 @@ class _JobApplicationCardState extends State<_JobApplicationCard> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    notification['title'] ?? 'Job Application',
+                                    notification['title'] ??
+                                        appStrings.notifCardAppTitle,
                                     style: theme.textTheme.titleMedium
                                         ?.copyWith(
                                           fontWeight: FontWeight.bold,
@@ -1261,7 +1302,7 @@ class _JobApplicationCardState extends State<_JobApplicationCard> {
                                 ],
                               ),
                             ),
-                            const SizedBox(width: 30), // Space for delete icon
+                            const SizedBox(width: 30),
                           ],
                         ),
                         const SizedBox(height: 12),
@@ -1347,7 +1388,7 @@ class _JobApplicationCardState extends State<_JobApplicationCard> {
                   ),
                   onPressed: widget.onDelete,
                   splashRadius: 20,
-                  tooltip: 'Delete Notification',
+                  tooltip: appStrings.notifTooltipDeleteSingle,
                 ),
               ),
             ],
@@ -1358,18 +1399,19 @@ class _JobApplicationCardState extends State<_JobApplicationCard> {
   }
 
   Widget _buildActionButtons() {
+    final appStrings = AppLocalizations.of(context)!;
     return Row(
       mainAxisAlignment: MainAxisAlignment.end,
       children: [
         TextButton(
           onPressed: () => _handleAction(false),
-          child: const Text("Decline"),
+          child: Text(appStrings.notifActionDecline),
         ),
         const SizedBox(width: 8),
         ElevatedButton.icon(
           onPressed: () => _handleAction(true),
           icon: const Icon(Icons.check_circle_outline, size: 18),
-          label: const Text("Accept"),
+          label: Text(appStrings.notifActionAccept),
         ),
       ],
     );
@@ -1377,10 +1419,11 @@ class _JobApplicationCardState extends State<_JobApplicationCard> {
 
   Widget _buildStatusInfo(Job? job) {
     final theme = Theme.of(context);
+    final appStrings = AppLocalizations.of(context)!;
     if (job == null) {
-      return const Row(
+      return Row(
         mainAxisAlignment: MainAxisAlignment.end,
-        children: [Text("Job info unavailable")],
+        children: [Text(appStrings.notifCardJobInfoUnavailable)],
       );
     }
     final data = widget.notification['data'] as Map<String, dynamic>? ?? {};
@@ -1392,13 +1435,13 @@ class _JobApplicationCardState extends State<_JobApplicationCard> {
     Color color;
 
     if (statusLower == 'completed') {
-      text = 'JOB COMPLETED';
+      text = appStrings.notifJobStatusCompleted;
       color = Colors.purple.shade600;
     } else if (statusLower == 'assigned' && isAssignedToThisWorker) {
-      text = 'ACCEPTED';
+      text = appStrings.notifJobStatusAccepted;
       color = Colors.green.shade700;
     } else if (statusLower == 'assigned' && !isAssignedToThisWorker) {
-      text = 'FILLED BY ANOTHER';
+      text = appStrings.notifJobStatusFilled;
       color = Colors.grey.shade600;
     } else {
       text = job.status.toUpperCase();
@@ -1487,6 +1530,7 @@ class _NewJobPostedCard extends StatelessWidget {
     VoidCallback onDelete,
   ) {
     final theme = Theme.of(context);
+    final appStrings = AppLocalizations.of(context)!;
     final type = notification['type'] as String? ?? '';
     final data = notification['data'] as Map<String, dynamic>? ?? {};
     final clientImageUrl = data['clientImageUrl'] as String?;
@@ -1534,8 +1578,8 @@ class _NewJobPostedCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         type == 'job_posted_self'
-                            ? "You posted a new job"
-                            : "$clientName posted a new job",
+                            ? appStrings.notifCardJobPostedByYou
+                            : appStrings.notifCardJobPostedBy(clientName),
                         style: theme.textTheme.titleSmall,
                       ),
                     ),
@@ -1590,13 +1634,13 @@ class _NewJobPostedCard extends StatelessWidget {
                             context,
                             Icons.location_on_outlined,
                             job.location.isEmpty
-                                ? 'Not specified'
+                                ? appStrings.notifCardLocationNotSpecified
                                 : job.location,
                           ),
                         ),
                         TextButton(
                           onPressed: () {},
-                          child: const Text('View Details'),
+                          child: Text(appStrings.notifActionViewDetails),
                         ),
                       ],
                     ),
@@ -1612,7 +1656,7 @@ class _NewJobPostedCard extends StatelessWidget {
               icon: Icon(Icons.close, size: 20, color: Colors.grey.shade600),
               onPressed: onDelete,
               splashRadius: 20,
-              tooltip: 'Delete Notification',
+              tooltip: appStrings.notifTooltipDeleteSingle,
             ),
           ),
         ],
@@ -1628,6 +1672,7 @@ class _NewJobPostedCard extends StatelessWidget {
     bool jobDeleted = false,
   }) {
     final theme = Theme.of(context);
+    final appStrings = AppLocalizations.of(context)!;
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: isRead ? 1 : 4,
@@ -1640,7 +1685,7 @@ class _NewJobPostedCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  notification['title'] ?? 'Notification',
+                  notification['title'] ?? appStrings.notifCardGenericTitle,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.bold,
                   ),
@@ -1655,7 +1700,7 @@ class _NewJobPostedCard extends StatelessWidget {
                 if (jobDeleted) ...[
                   const SizedBox(height: 12),
                   Text(
-                    'This job may have been deleted.',
+                    appStrings.notifCardJobDeleted,
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: theme.colorScheme.error,
                     ),
@@ -1671,7 +1716,7 @@ class _NewJobPostedCard extends StatelessWidget {
               icon: Icon(Icons.close, size: 20, color: Colors.grey.shade600),
               onPressed: onDelete,
               splashRadius: 20,
-              tooltip: 'Delete Notification',
+              tooltip: appStrings.notifTooltipDeleteSingle,
             ),
           ),
         ],
@@ -1790,6 +1835,7 @@ class _JobStatusUpdateCard extends StatelessWidget {
     VoidCallback onDelete,
   ) {
     final theme = Theme.of(context);
+    final appStrings = AppLocalizations.of(context)!;
     final isRead = _safeReadBool(notification['isRead']);
 
     return Card(
@@ -1882,7 +1928,7 @@ class _JobStatusUpdateCard extends StatelessWidget {
               icon: Icon(Icons.close, size: 20, color: Colors.grey.shade600),
               onPressed: onDelete,
               splashRadius: 20,
-              tooltip: 'Delete Notification',
+              tooltip: appStrings.notifTooltipDeleteSingle,
             ),
           ),
         ],
@@ -1910,6 +1956,7 @@ class _GenericInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final appStrings = AppLocalizations.of(context)!;
     final isRead = _safeReadBool(notification['isRead']);
     final createdAt = (notification['createdAt'] as Timestamp?)?.toDate();
     final type = notification['type'] as String? ?? '';
@@ -1941,7 +1988,8 @@ class _GenericInfoCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        notification['title'] ?? 'Notification',
+                        notification['title'] ??
+                            appStrings.notifCardGenericTitle,
                         style: theme.textTheme.titleMedium?.copyWith(
                           fontWeight: isRead
                               ? FontWeight.normal
@@ -1978,7 +2026,7 @@ class _GenericInfoCard extends StatelessWidget {
               icon: Icon(Icons.close, size: 20, color: Colors.grey.shade600),
               onPressed: onDelete,
               splashRadius: 20,
-              tooltip: 'Delete Notification',
+              tooltip: appStrings.notifTooltipDeleteSingle,
             ),
           ),
         ],
@@ -2032,7 +2080,6 @@ IconInfo _getIconForType(String type) {
       return IconInfo(icon: Icons.task_alt, color: Colors.purple.shade400);
     case 'job_status_update':
       return IconInfo(icon: Icons.sync_alt, color: Colors.orange.shade700);
-    // UPDATED THIS
     case 'message_received':
     case 'message':
       return IconInfo(
@@ -2064,11 +2111,11 @@ class _JobProgressTimeline extends StatelessWidget {
         currentIndex = 1;
         break;
       case 'in_progress':
-      case 'started working': // handle this alias
+      case 'started working':
         currentIndex = 2;
         break;
       case 'completed':
-      case 'paycompleted': // handle this alias
+      case 'paycompleted':
         currentIndex = 3;
         break;
       default:
@@ -2079,6 +2126,7 @@ class _JobProgressTimeline extends StatelessWidget {
       height: 60,
       child: CustomPaint(
         painter: _TimelinePainter(
+          context: context,
           currentIndex: currentIndex,
           activeColor: Theme.of(context).colorScheme.primary,
           inactiveColor: Theme.of(context).colorScheme.surfaceContainerHighest,
@@ -2091,11 +2139,13 @@ class _JobProgressTimeline extends StatelessWidget {
 }
 
 class _TimelinePainter extends CustomPainter {
+  final BuildContext context;
   final int currentIndex;
   final Color activeColor;
   final Color inactiveColor;
   final Color textColor;
   _TimelinePainter({
+    required this.context,
     required this.currentIndex,
     required this.activeColor,
     required this.inactiveColor,
@@ -2104,9 +2154,15 @@ class _TimelinePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final appStrings = AppLocalizations.of(context)!;
     final paintLine = Paint()..strokeWidth = 2;
     final paintCircle = Paint();
-    final labels = ['Pending', 'Assigned', 'In Progress', 'Completed'];
+    final labels = [
+      appStrings.timelinePending,
+      appStrings.timelineAssigned,
+      appStrings.timelineInProgress,
+      appStrings.timelineCompleted,
+    ];
 
     final double stepWidth = size.width / (labels.length - 1);
     final double y = size.height / 3;
