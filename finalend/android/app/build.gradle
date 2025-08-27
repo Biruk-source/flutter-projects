@@ -14,7 +14,6 @@ android {
     
 
     compileOptions {
-        coreLibraryDesugaringEnabled true
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
     }
@@ -25,7 +24,7 @@ android {
 
     signingConfigs {
         debug {
-           
+            // *** FIXED LINE: Point to the default debug keystore location ***
             storeFile file("${System.properties['user.home']}/.android/debug.keystore")
             // Standard password/alias for the default debug key
             storePassword 'android'
@@ -50,7 +49,7 @@ android {
 
     defaultConfig {
         applicationId = "com.example.my_app1" // TODO: Replace with your App ID
-        minSdkVersion flutter.minSdkVersion
+        minSdk = 23
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
@@ -91,5 +90,4 @@ dependencies {
     implementation 'com.google.firebase:firebase-auth'
     implementation 'com.google.firebase:firebase-analytics'
     implementation 'androidx.multidex:multidex:2.0.1'
-     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
 }

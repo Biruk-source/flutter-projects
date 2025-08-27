@@ -1676,15 +1676,12 @@ class _IntroVideoManager extends StatelessWidget {
         videoFile != null || (videoUrl != null && videoUrl!.isNotEmpty);
 
     if (!hasVideo) {
-      // NEW, CORRECTED CODE
       return DottedBorder(
-        options: RoundedRectDottedBorderOptions(
-          color: theme.colorScheme.primary,
-          strokeWidth: 2,
-          dashPattern: const [8, 8],
-          radius: const Radius.circular(16),
-          padding: EdgeInsets.zero, // Important to keep child alignment
-        ),
+        color: theme.colorScheme.primary,
+        strokeWidth: 2,
+        dashPattern: const [8, 8],
+        borderType: BorderType.RRect,
+        radius: const Radius.circular(16),
         child: AspectRatio(
           aspectRatio: 9 / 16,
           child: InkWell(
@@ -1701,8 +1698,7 @@ class _IntroVideoManager extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    appStrings
-                        .professionalSetupVideoEmptyButton, // Your string variable
+                    appStrings.professionalSetupVideoEmptyButton,
                     style: theme.textTheme.labelLarge?.copyWith(
                       color: theme.colorScheme.primary,
                     ),
@@ -1828,16 +1824,12 @@ class _MediaGridUploader extends StatelessWidget {
             SizedBox(
               width: itemWidth,
               height: itemWidth,
-              // NEW CODE - FIXED
-              // NEW, CORRECTED CODE
               child: DottedBorder(
-                options: RoundedRectDottedBorderOptions(
-                  color: Theme.of(context).colorScheme.primary,
-                  strokeWidth: 1.5,
-                  dashPattern: const [6, 6],
-                  radius: const Radius.circular(12),
-                  padding: EdgeInsets.zero, // Important to keep child alignment
-                ),
+                color: Theme.of(context).colorScheme.primary,
+                strokeWidth: 1.5,
+                dashPattern: const [6, 6],
+                borderType: BorderType.RRect,
+                radius: const Radius.circular(12),
                 child: InkWell(
                   onTap: onAdd,
                   borderRadius: BorderRadius.circular(11),
@@ -1851,8 +1843,7 @@ class _MediaGridUploader extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          appStrings
-                              .professionalSetupImageEmptyButton, // Your string variable
+                          appStrings.professionalSetupImageEmptyButton,
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.labelMedium
                               ?.copyWith(

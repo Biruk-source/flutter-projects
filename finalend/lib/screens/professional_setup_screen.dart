@@ -45,6 +45,7 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
   VideoPlayerController? _videoController;
   ChewieController? _chewieController;
 
+  // FIX #1: Gallery files are now a Map to hold categories.
   Map<String, List<dynamic>> _galleryImageFiles = {
     'Before/After': [],
     'Work Process': [],
@@ -182,6 +183,7 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
   Future<void> _getCurrentLocationAndUpdateField() async {
     if (_isFetchingLocation) return;
     setState(() => _isFetchingLocation = true);
+
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
@@ -211,6 +213,7 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
           );
         return;
       }
+
       Position position = await Geolocator.getCurrentPosition(
         desiredAccuracy: LocationAccuracy.high,
       );
@@ -247,14 +250,16 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
     if (_aboutController.text.trim().length > 20) score++;
     if (_profileImageFile != null) score++;
     if (_skills.isNotEmpty) score++;
+    // FIX #3: Check if any of the categorized gallery lists has at least one image.
     if (_galleryImageFiles.values.any((list) => list.isNotEmpty)) score++;
     if (_introVideoFile != null) score++;
     if (mounted) setState(() => _profileStrength = score / maxScore);
   }
 
   void _nextPage() {
+    // Only validate form on the page with required text fields
     if (_currentPage == 1) {
-      if (!(_formKey.currentState?.validate() ?? false)) {
+      if (!_formKey.currentState!.validate()) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Please fill out all required fields on this page.'),
@@ -269,6 +274,7 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
     }
   }
 
+  // Helper for uploading categorized files
   Future<Map<String, List<String>>> uploadCategorizedFiles(
     Map<String, List<dynamic>> fileMap,
   ) async {
@@ -277,13 +283,16 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
       final List<String> urls = [];
       for (var file in fileMap[category]!) {
         if (file is String) {
+          // In case it's an existing URL (for editing later)
           urls.add(file);
         } else if (file is XFile) {
           final url = await _firebaseService.uploadGenericImage(
             File(file.path),
             'gallery_images/$category',
           );
-          if (url != null) urls.add(url);
+          if (url != null) {
+            urls.add(url);
+          }
         }
       }
       uploadedUrls[category] = urls;
@@ -292,7 +301,7 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
   }
 
   Future<void> _saveProfileAndFinish() async {
-    if (!(_formKey.currentState?.validate() ?? false)) {
+    if (!_formKey.currentState!.validate()) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -306,36 +315,46 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
 
     setState(() => _isSaving = true);
     final messenger = ScaffoldMessenger.of(context);
+
     try {
       messenger.showSnackBar(
         const SnackBar(content: Text('Uploading media...')),
       );
+
       String? profileImageUrl;
       if (_profileImageFile != null) {
         profileImageUrl = await _firebaseService.uploadProfileImage(
           File(_profileImageFile!.path),
         );
       }
+
       String? introVideoUrl;
       if (_introVideoFile != null) {
         introVideoUrl = await _firebaseService.uploadProfileVideoToSupabase(
           platformFile: _introVideoFile!,
         );
       }
+
+      // FIX #4: Use the new categorized uploader.
       Map<String, List<String>> finalGalleryUrls = await uploadCategorizedFiles(
         _galleryImageFiles,
       );
+
       List<String> finalCertificationUrls = await _uploadFileList(
         _certificationImageFiles,
         'certification_images',
       );
+
       messenger.hideCurrentSnackBar();
       messenger.showSnackBar(
         const SnackBar(content: Text('Finalizing profile...')),
       );
+
       final availabilityData = _availability.map(
         (key, value) => MapEntry(key, value.toJson()),
       );
+
+      // FIX #5: Call the updated `saveWorker` service, passing the Map.
       await _firebaseService.saveWorker(
         name: _nameController.text.trim(),
         phone: _phoneController.text.trim(),
@@ -347,13 +366,14 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
         skills: _skills,
         profileImageUrl: profileImageUrl,
         introVideoUrl: introVideoUrl,
-        galleryImageUrls: finalGalleryUrls,
+        galleryImageUrls: finalGalleryUrls, // Correctly passing the Map now
         certificationImageUrls: finalCertificationUrls,
         availability: availabilityData,
         latitude: _currentLatitude,
         longitude: _currentLongitude,
         serviceRadius: 20.0,
       );
+
       messenger.hideCurrentSnackBar();
       messenger.showSnackBar(
         const SnackBar(
@@ -361,6 +381,7 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
           backgroundColor: Colors.green,
         ),
       );
+
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const HomeScreen()),
@@ -425,6 +446,7 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
     }
   }
 
+  // FIX #6: This now takes a category and adds the photo to the correct list within the map.
   Future<void> _pickMultiImage(
     String category,
     List<dynamic> targetList,
@@ -557,10 +579,13 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // This assumes you have a light theme defined, you can create a simple one if not
     final theme = Theme.of(context);
     final appStrings = AppLocalizations.of(context);
+
     if (appStrings == null)
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+
     final pages = [
       _buildWelcomePage(theme, appStrings),
       _buildBasicInfoPage(theme, appStrings),
@@ -568,6 +593,7 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
       _buildShowcasePage(theme, appStrings),
       _buildOperationsPage(theme, appStrings),
     ];
+
     return Scaffold(
       backgroundColor: theme.colorScheme.surface,
       appBar: AppBar(
@@ -727,7 +753,11 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const SizedBox(height: 20),
-            const Icon(Icons.shield_moon_rounded, size: 80)
+            Icon(
+                  Icons.shield_moon_rounded,
+                  color: theme.colorScheme.primary,
+                  size: 80,
+                )
                 .animate(onPlay: (c) => c.repeat(reverse: true))
                 .shimmer(
                   delay: 400.ms,
@@ -855,6 +885,7 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
     );
   }
 
+  // FIX #7: This is the corrected showcase page with tabs for the gallery.
   Widget _buildShowcasePage(ThemeData theme, AppStrings appStrings) {
     final galleryCategories = _galleryImageFiles.keys.toList();
     return DefaultTabController(
@@ -878,6 +909,7 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
             ),
           ),
           const Divider(height: 48),
+
           _TitledContent(
             title: "Your Work Gallery",
             child: Column(
@@ -888,13 +920,15 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
                   tabs: galleryCategories.map((cat) => Tab(text: cat)).toList(),
                 ),
                 Container(
-                  height: 350,
+                  height: 350, // Give it a fixed height
                   padding: const EdgeInsets.only(top: 20),
                   child: TabBarView(
                     children: galleryCategories.map((category) {
                       final fileList = _galleryImageFiles[category]!;
                       return _MediaGridUploader(
-                        files: fileList.whereType<XFile>().toList(),
+                        files: fileList
+                            .whereType<XFile>()
+                            .toList(), // Ensure list type is correct
                         onAdd: () => _pickMultiImage(category, fileList),
                         onRemove: (file) => _removeMedia(file, fileList),
                       );
@@ -904,12 +938,16 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
               ],
             ),
           ),
+
           const Divider(height: 48),
           _TitledContent(
             title: "Certifications & Licenses (Max 6)",
             child: _MediaGridUploader(
               files: _certificationImageFiles,
-              onAdd: () => _pickMultiImage('certs', _certificationImageFiles),
+              onAdd: () => _pickMultiImage(
+                'certs',
+                _certificationImageFiles,
+              ), // Passing the list directly
               onRemove: (f) => _removeMedia(f, _certificationImageFiles),
             ),
           ),
@@ -975,7 +1013,7 @@ class _ProfessionalSetupScreenState extends State<ProfessionalSetupScreen> {
   }
 }
 
-// --- HELPER WIDGETS ---
+// --- HELPER WIDGETS --- (The rest of the helper widgets remain the same as you had)
 class _TitledContent extends StatelessWidget {
   final String title;
   final Widget child;
@@ -1063,17 +1101,12 @@ class _IntroVideoManager extends StatelessWidget {
     final bool hasVideo = videoFile != null;
 
     if (!hasVideo) {
-      // =================================================================
-      // ========== FIX #1: Correct DottedBorder Syntax Here ==========
-      // =================================================================
       return DottedBorder(
-        options: RoundedRectDottedBorderOptions(
-          color: theme.colorScheme.primary,
-          strokeWidth: 2,
-          dashPattern: const [8, 8],
-          radius: const Radius.circular(16),
-          padding: EdgeInsets.zero,
-        ),
+        color: theme.colorScheme.primary,
+        strokeWidth: 2,
+        dashPattern: const [8, 8],
+        borderType: BorderType.RRect,
+        radius: const Radius.circular(16),
         child: AspectRatio(
           aspectRatio: 9 / 16,
           child: InkWell(
@@ -1160,6 +1193,7 @@ class _MediaGridUploader extends StatelessWidget {
         final double itemWidth =
             (availableWidth - (spacing * (crossAxisCount - 1))) /
             crossAxisCount;
+
         final List<Widget> children = [];
 
         for (final file in files) {
@@ -1208,17 +1242,12 @@ class _MediaGridUploader extends StatelessWidget {
             SizedBox(
               width: itemWidth,
               height: itemWidth,
-              // =================================================================
-              // ========== FIX #2: Correct DottedBorder Syntax Here ==========
-              // =================================================================
               child: DottedBorder(
-                options: RoundedRectDottedBorderOptions(
-                  color: Theme.of(context).colorScheme.primary,
-                  strokeWidth: 1.5,
-                  dashPattern: const [6, 6],
-                  radius: const Radius.circular(12),
-                  padding: EdgeInsets.zero,
-                ),
+                color: Theme.of(context).colorScheme.primary,
+                strokeWidth: 1.5,
+                dashPattern: const [6, 6],
+                borderType: BorderType.RRect,
+                radius: const Radius.circular(12),
                 child: InkWell(
                   onTap: onAdd,
                   borderRadius: BorderRadius.circular(11),

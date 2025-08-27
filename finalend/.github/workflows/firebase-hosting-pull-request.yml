@@ -11,7 +11,10 @@ jobs:
   build_and_preview:
     if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
     runs-on: ubuntu-latest
-    
+<<<<<<< HEAD
+=======
+    working-directory: ./finalend
+>>>>>>> 6a2d245 (Configure correct working directory for Firebase deployment)
     steps:
       - uses: actions/checkout@v4
       - run: flutter build web
